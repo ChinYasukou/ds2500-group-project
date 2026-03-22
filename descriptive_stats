@@ -1,0 +1,73 @@
+#average
+def find_average(numbers):
+    '''
+    It will take a list of numbers and return the mean of the list
+    '''
+    return sum(numbers) / len(numbers)
+
+#median
+def find_median(numbers):
+    '''
+    It will take a list of numbers and return the median of the list
+    '''
+    sorted_numbers = sorted(numbers)
+    n = len(sorted_numbers)
+    mid = n // 2
+
+    if n % 2 == 0:
+        return (sorted_numbers[mid - 1] + sorted_numbers[mid]) / 2
+    else:
+        return sorted_numbers[mid]
+
+#mode
+def find_mode(numbers):
+    '''
+    It will take a list of numbers and return the mode of the list
+    '''
+    value2count = {i:0 for i in numbers}
+    for i in numbers:
+        value2count[i] += 1
+
+    max_count = max(value2count.values())
+    modes = [value for value, count in value2count.items() if count == max_count]
+
+    if len(modes) > 1:
+        return modes
+    else:
+        return modes[0]
+
+#variance
+def find_variance(numbers):
+    '''
+    Takes a list of numbers and returns the population variance of the list
+    '''
+    mean = find_average(numbers)
+    variance = sum((x - mean) ** 2 for x in numbers) / len(numbers)
+
+    return variance
+
+#standard deviation 
+def find_sd(variance):
+    '''
+    Takes variance and returns the standard deviation 
+    '''
+    return variance ** 0.5
+
+#main
+def main():
+    for name, section in [("___data_____name", ________), ("______data_____name", _________)]:
+        mean = find_average(section)
+        median = find_median(section)
+        mode = find_mode(section)
+        variance = find_variance(section)
+        sd = find_sd(variance)
+    print(f"{name}")
+    print(f"Mean: {mean}")
+    print(f"Mode: {mode}")
+    print(f"Median: {median}")
+    print(f"Variance: {variance}")
+    print(f"Standard Deviation: {sd}")
+
+#calling main function
+if __name__ == "__main__":
+   main()
