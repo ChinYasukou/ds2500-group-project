@@ -1,55 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Team project: Socioeconomic factors and health outcomes in BRFSS
-
-This script:
 1. Loads BRFSS survey data from a CSV file
 2. Selects relevant socioeconomic and health columns
 3. Cleans missing/special coded values
 4. Creates health outcome categories
-5. Produces descriptive statistics and visualizations
-6. Builds classification models to predict health outcomes
 """
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.metrics import accuracy_score, f1_score, classification_report
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-
-
-# ---------------------------------------------------
-# 1. LOAD DATA
-# ---------------------------------------------------
-
-def load_data(file_path):
-    """
-    Load BRFSS data from a CSV file.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the CSV file.
-
-    Returns
-    -------
-    DataFrame
-        Loaded dataset.
-    """
-    return pd.read_csv(file_path, low_memory=False)
-
-
-# ---------------------------------------------------
-# 2. COLUMN HELPERS
-# ---------------------------------------------------
+def load_data(file):
+    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
 
 def find_existing_column(df, possible_names):
     """
@@ -90,23 +52,19 @@ def build_column_map(df):
         Dictionary mapping friendly names to actual dataset column names.
     """
     column_map = {
-        "income": find_existing_column(df, ["INCOME3", "INCOME2", "_INCOMG1"]),
-        "education": find_existing_column(df, ["EDUCA", "_EDUCAG"]),
-        "employment": find_existing_column(df, ["EMPLOY1", "EMPLOY"]),
-        "insurance": find_existing_column(df, ["HLTHPLN1", "PERSDOC3"]),
-        "bmi": find_existing_column(df, ["_BMI5", "BMI5", "BMI"]),
-        "diabetes": find_existing_column(df, ["DIABETE4", "DIABETE3", "DIABETES"]),
+        "income": find_existing_column(df, ["INCOME3"]),
+        "education": find_existing_column(df, ["EDUCA"]),
+        "employment": find_existing_column(df, ["EMPLOY1"]),
+        "insurance": find_existing_column(df, ["PERSDOC3"]),
+        "bmi": find_existing_column(df, ["_BMI5"]),
+        "diabetes": find_existing_column(df, ["DIABETE4"]),
         "hypertension": find_existing_column(df, ["BPHIGH6", "BPHIGH4", "HYPERTEN"]),
         "cholesterol": find_existing_column(df, ["TOLDHI3", "TOLDHI2", "CHOLHIGH"]),
-        "age": find_existing_column(df, ["_AGE80", "_AGEG5YR", "AGE"]),
-        "sex": find_existing_column(df, ["SEXVAR", "SEX"])
+        "age": find_existing_column(df, ["_AGE80"]),
+        "sex": find_existing_column(df, ["SEXVAR"])
     }
     return column_map
 
-
-# ---------------------------------------------------
-# 3. CLEAN DATA
-# ---------------------------------------------------
 
 def clean_brfss_data(df, column_map):
     """
@@ -149,11 +107,6 @@ def clean_brfss_data(df, column_map):
 
     return clean_df
 
-
-# ---------------------------------------------------
-# 4. CREATE TARGET VARIABLES
-# ---------------------------------------------------
-
 def create_outcome_variables(df):
     """
     Create binary health outcome columns for modeling.
@@ -195,182 +148,11 @@ def create_outcome_variables(df):
     return df
 
 
-# ---------------------------------------------------
-# 5. DESCRIPTIVE STATS
-# ---------------------------------------------------
-
-def descriptive_stats(df):
-    """
-    Print descriptive statistics for the main variables.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Cleaned dataset.
-    """
-    print("\nDESCRIPTIVE STATISTICS")
-    print(df.describe(include="all"))
-
-
-# ---------------------------------------------------
-# 6. VISUALIZATIONS
-# ---------------------------------------------------
-
-def plot_income_vs_bmi(df):
-    """
-    Create a boxplot of BMI by income category.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Dataset containing income and bmi.
-    """
-    if "income" in df.columns and "bmi" in df.columns:
-        temp = df[["income", "bmi"]].dropna()
-        plt.figure(figsize=(10, 6))
-        temp.boxplot(column="bmi", by="income")
-        plt.title("BMI by Income Category")
-        plt.suptitle("")
-        plt.xlabel("Income Category")
-        plt.ylabel("BMI")
-        plt.tight_layout()
-        plt.show()
-
-
-def plot_employment_vs_obesity(df):
-    """
-    Create a bar chart of obesity rate by employment category.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Dataset containing employment and obesity_risk.
-    """
-    if "employment" in df.columns and "obesity_risk" in df.columns:
-        temp = df[["employment", "obesity_risk"]].dropna()
-        rates = temp.groupby("employment")["obesity_risk"].mean().sort_index()
-
-        plt.figure(figsize=(10, 6))
-        rates.plot(kind="bar")
-        plt.title("Obesity Rate by Employment Status")
-        plt.xlabel("Employment Category")
-        plt.ylabel("Proportion Obese")
-        plt.tight_layout()
-        plt.show()
-
-
-def plot_education_vs_diabetes(df):
-    """
-    Create a bar chart of diabetes rate by education category.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Dataset containing education and diabetes_binary.
-    """
-    if "education" in df.columns and "diabetes_binary" in df.columns:
-        temp = df[["education", "diabetes_binary"]].dropna()
-        rates = temp.groupby("education")["diabetes_binary"].mean().sort_index()
-
-        plt.figure(figsize=(10, 6))
-        rates.plot(kind="bar")
-        plt.title("Diabetes Rate by Education Level")
-        plt.xlabel("Education Category")
-        plt.ylabel("Proportion with Diabetes")
-        plt.tight_layout()
-        plt.show()
-
-
-# ---------------------------------------------------
-# 7. MODELING
-# ---------------------------------------------------
-
-def run_classification_models(df, target_column):
-    """
-    Train logistic regression and random forest models for one target.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Dataset containing predictors and target.
-    target_column : str
-        Name of target column.
-
-    Returns
-    -------
-    None
-    """
-    feature_cols = ["income", "education", "employment", "insurance", "age", "sex"]
-    feature_cols = [col for col in feature_cols if col in df.columns]
-
-    model_df = df[feature_cols + [target_column]].dropna()
-
-    if model_df.empty:
-        print(f"\nSkipping {target_column}: no usable rows after dropping missing values.")
-        return
-
-    X = model_df[feature_cols]
-    y = model_df[target_column].astype(int)
-
-    categorical_cols = [col for col in feature_cols if col in ["income", "education", "employment", "insurance", "sex"]]
-    numeric_cols = [col for col in feature_cols if col in ["age"]]
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler())
-            ]), numeric_cols),
-            ("cat", Pipeline([
-                ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("onehot", OneHotEncoder(handle_unknown="ignore"))
-            ]), categorical_cols)
-        ],
-        remainder="drop"
-    )
-
-    models = {
-        "Logistic Regression": LogisticRegression(max_iter=1000),
-        "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42)
-    }
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    print(f"\n{'=' * 60}")
-    print(f"TARGET: {target_column}")
-    print(f"{'=' * 60}")
-
-    for model_name, model in models.items():
-        pipeline = Pipeline([
-            ("preprocess", preprocessor),
-            ("model", model)
-        ])
-
-        pipeline.fit(X_train, y_train)
-        y_pred = pipeline.predict(X_test)
-
-        acc = accuracy_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
-
-        print(f"\n{model_name}")
-        print(f"Accuracy: {acc:.3f}")
-        print(f"F1 Score: {f1:.3f}")
-        print(classification_report(y_test, y_pred))
-
-
-# ---------------------------------------------------
-# 8. MAIN
-# ---------------------------------------------------
-
 def main():
-    """
-    Run the full BRFSS health disparity analysis pipeline.
-    """
-    file_path = "brfss_survey_data_2024"   # change this to your exported CSV filename
 
-    df = load_data(file_path)
+    file = "brfss_survey_data_2024.csv"   
+
+    df = load_data(file)
 
     print("Loaded dataset shape:", df.shape)
     print("\nFirst 20 columns in dataset:")
@@ -382,22 +164,13 @@ def main():
 
     clean_df = clean_brfss_data(df, column_map)
     clean_df = create_outcome_variables(clean_df)
+    clean_df.to_csv("clean_brfss_data.csv", index=False)
+
+    print("Cleaned dataset saved as clean_brfss_data.csv")
 
     print("\nCleaned dataset shape:", clean_df.shape)
     print("\nMissing values by column:")
     print(clean_df.isna().sum())
-
-    descriptive_stats(clean_df)
-
-    # Plots
-    plot_income_vs_bmi(clean_df)
-    plot_employment_vs_obesity(clean_df)
-    plot_education_vs_diabetes(clean_df)
-
-    # Models
-    for target in ["obesity_risk", "diabetes_binary", "hypertension_binary", "cholesterol_binary"]:
-        if target in clean_df.columns:
-            run_classification_models(clean_df, target)
 
 
 if __name__ == "__main__":
