@@ -12,6 +12,10 @@ cols = [
     "PRIMINS2",
     "GENHLTH",
     "DIABETE4"
+    "BPHIGH6",
+    "TOLDHI3",
+    "_AGE80",
+    "SEXVAR"
 ]
 df = df[cols]
 
