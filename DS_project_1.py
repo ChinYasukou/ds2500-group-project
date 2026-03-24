@@ -107,47 +107,6 @@ def clean_brfss_data(df, column_map):
 
     return clean_df
 
-def create_outcome_variables(df):
-    """
-    Create binary health outcome columns for modeling.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Cleaned dataset.
-
-    Returns
-    -------
-    DataFrame
-        Dataframe with added target variables.
-    """
-    df = df.copy()
-
-    if "bmi" in df.columns:
-        df["obesity_risk"] = np.where(df["bmi"] >= 30, 1, 0)
-        df.loc[df["bmi"].isna(), "obesity_risk"] = np.nan
-
-    # BRFSS diabetes coding often:
-    # 1 = yes, 2 = yes but female told only during pregnancy, 3 = no, etc.
-    if "diabetes" in df.columns:
-        df["diabetes_binary"] = np.where(df["diabetes"] == 1, 1,
-                                  np.where(df["diabetes"] == 3, 0, np.nan))
-
-    # BRFSS hypertension coding often:
-    # 1 = yes, 3 = no
-    if "hypertension" in df.columns:
-        df["hypertension_binary"] = np.where(df["hypertension"] == 1, 1,
-                                      np.where(df["hypertension"] == 3, 0, np.nan))
-
-    # BRFSS high cholesterol coding often:
-    # 1 = yes, 2 = no
-    if "cholesterol" in df.columns:
-        df["cholesterol_binary"] = np.where(df["cholesterol"] == 1, 1,
-                                     np.where(df["cholesterol"] == 2, 0, np.nan))
-
-    return df
-
-
 def main():
 
     file = "brfss_survey_data_2024.csv"   
@@ -163,7 +122,6 @@ def main():
     print(column_map)
 
     clean_df = clean_brfss_data(df, column_map)
-    clean_df = create_outcome_variables(clean_df)
     clean_df.to_csv("clean_brfss_data.csv", index=False)
 
     print("Cleaned dataset saved as clean_brfss_data.csv")
