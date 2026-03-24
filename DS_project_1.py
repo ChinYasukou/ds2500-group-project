@@ -96,11 +96,7 @@ def clean_brfss_data(df, column_map):
 
     clean_df.replace(missing_codes, inplace=True)
 
-    # Convert to numeric where possible
-    for col in clean_df.columns:
-        clean_df[col] = pd.to_numeric(clean_df[col], errors="ignore")
-
-    # BMI in BRFSS is often stored as BMI * 100
+    # BMI stored as BMI * 100, normalize it to normal BMI scale
     if "bmi" in clean_df.columns:
         if clean_df["bmi"].dropna().median() > 100:
             clean_df["bmi"] = clean_df["bmi"] / 100
@@ -114,8 +110,6 @@ def main():
     df = load_data(file)
 
     print("Loaded dataset shape:", df.shape)
-    print("\nFirst 20 columns in dataset:")
-    print(df.columns[:20].tolist())
 
     column_map = build_column_map(df)
     print("\nDetected column map:")
