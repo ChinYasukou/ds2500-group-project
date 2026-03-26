@@ -26,13 +26,13 @@ binary_cols = ["PRIMINS2", "DIABETE4", "SEXVAR", "_MICHD", "CHCSCNC1"]
 for col in binary_cols:
     df[col] = df[col].fillna(df[col].mode()[0])
 
-# Fill remaining numeric columns with mean
+# Fill rest numeric columns with averages
 df = df.fillna(df.mean(numeric_only=True))
 
 # Fix BMI scale
 df["_BMI5"] = df["_BMI5"] / 100
 
-# Convert binary variables to 0/1
+# Convert binary variables to 0/1 for better classification
 df["PRIMINS2"] = df["PRIMINS2"].replace({1: 1, 2: 0})
 df["DIABETE4"] = df["DIABETE4"].replace({1: 1, 2: 0})
 df["SEXVAR"] = df["SEXVAR"].replace({1: 1, 2: 0})
@@ -40,6 +40,6 @@ df["_MICHD"] = df["_MICHD"].replace({1: 1, 2: 0})
 df["CHCSCNC1"] = df["CHCSCNC1"].replace({1: 1, 2: 0})
 
 # Save cleaned dataset
-df.to_csv("cleaned_brfss_FINAL.csv", index=False)
+df.to_csv("cleaned_brfss.csv", index=False)
 
-print("Preprocessing complete — cleaned_brfss_FINAL.csv created")
+print("Preprocessing complete, cleaned_brfss.csv created")
