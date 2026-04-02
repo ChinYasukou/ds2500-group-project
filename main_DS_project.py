@@ -86,7 +86,7 @@ def fill_missing_values(clean_df):
             mode_value = filled_df[col].mode(dropna=True)
             if len(mode_value) > 0:
                 filled_df[col] = filled_df[col].fillna(mode_value.iloc[0])
-
+                
     return filled_df
 
 
@@ -97,6 +97,7 @@ def save_clean_model_file(df, file_name="clean_brfss_data.csv"):
     df.to_csv(file_name, index=False)
     print(f"\nSaved cleaned data as {file_name}")
 
+# this is where stats and graphs for coorelation go
 
 def prepare_features_and_target(df, target_col):
     """
@@ -303,6 +304,18 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
 
     return summary
 
+def descriptive_stats(df):
+    """
+    Print descriptive statistics for the main variables.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Cleaned dataset.
+    """
+    print("\nDESCRIPTIVE STATISTICS")
+    print(df.describe(include="all"))
+
 
 def main():
     """
@@ -347,7 +360,9 @@ def main():
     print("FINAL SUMMARY")
     print(f"{'=' * 50}")
     print(summary_df)
-
+    
+    
+    descriptive_stats(df)
 
 if __name__ == "__main__":
     main()
