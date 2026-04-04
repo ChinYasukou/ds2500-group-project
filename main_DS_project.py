@@ -287,11 +287,12 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
 
     results_df.to_csv(f"knn_{target_col}_k_results.csv", index=False)
 
-    predictions_df = pd.DataFrame({
-        "actual": y_test_array,
-        "predicted": y_test_pred
-    })
-    predictions_df.to_csv(f"knn_{target_col}_predictions.csv", index=False)
+    save_predictions_with_features(
+    X_test,
+    y_test_array,
+    y_test_pred,
+    X.columns.tolist(),
+    target_col)
 
     summary = {
         "target": target_col,
@@ -304,18 +305,40 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
 
     return summary
 
-def descriptive_stats(df):
+def save_predictions_with_features(X_test, y_test, y_pred, feature_names, target_col):
     """
-    Print descriptive statistics for the main variables.
+    Save a CSV file that includes:
+    - socioeconomic features
+    - actual values
+    - predicted values
 
     Parameters
     ----------
-    df : DataFrame
-        Cleaned dataset.
+    X_test : array-like
+        Test feature data (scaled or unscaled).
+    y_test : array-like
+        True labels.
+    y_pred : array-like
+        Predicted labels.
+    feature_names : list
+        Names of feature columns.
+    target_col : str
+        Name of the target variable (e.g., 'diabetes').
     """
-    print("\nDESCRIPTIVE STATISTICS")
-    print(df.describe(include="all"))
 
+    # Convert X_test back into a DataFrame
+    X_test_df = pd.DataFrame(X_test, columns=feature_names)
+
+    # Create full predictions DataFrame
+    predictions_df = X_test_df.copy()
+    predictions_df[f"actual_{target_col}"] = y_test
+    predictions_df[f"predicted_{target_col}"] = y_pred
+
+    # Save to CSV
+    file_name = f"knn_{target_col}_predictions_full.csv"
+    predictions_df.to_csv(file_name, index=False)
+
+    print(f"Saved full predictions file: {file_name}")
 
 def main():
     """
@@ -361,8 +384,6 @@ def main():
     print(f"{'=' * 50}")
     print(summary_df)
     
-    
-    descriptive_stats(df)
 
 if __name__ == "__main__":
     main()
