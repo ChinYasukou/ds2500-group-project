@@ -12,23 +12,17 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 
 def load_data(file):
-    """
-    Load raw BRFSS CSV file.
-    """
+    """Load raw BRFSS CSV file."""
     return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
 
 
 def load_clean_data(file):
-    """
-    Load already-cleaned CSV file.
-    """
+    """Load already-cleaned CSV file."""
     return pd.read_csv(file, low_memory=False)
 
 
 def find_existing_column(df, possible_names):
-    """
-    Return the first column name from possible_names that exists in df.
-    """
+    """Return the first column name from possible_names that exists in df."""
     for col in possible_names:
         if col in df.columns:
             return col
@@ -36,9 +30,7 @@ def find_existing_column(df, possible_names):
 
 
 def build_column_map(df):
-    """
-    Build a column map using likely BRFSS variable names.
-    """
+    """Build a column map using likely BRFSS variable names."""
     return {
         "income": find_existing_column(df, ["INCOME3"]),
         "education": find_existing_column(df, ["EDUCA"]),
@@ -53,9 +45,7 @@ def build_column_map(df):
 
 
 def clean_brfss_data(df, column_map):
-    """
-    Select relevant columns and replace BRFSS missing-value codes with NaN.
-    """
+    """Select relevant columns and replace BRFSS missing-value codes with NaN."""
     selected = {k: v for k, v in column_map.items() if v is not None}
 
     clean_df = df[list(selected.values())].copy()
@@ -76,9 +66,7 @@ def clean_brfss_data(df, column_map):
 
 
 def fill_missing_values(clean_df):
-    """
-    Fill missing values with the mode for each column.
-    """
+    """Fill missing values with the mode for each column."""
     filled_df = clean_df.copy()
 
     for col in filled_df.columns:
@@ -91,18 +79,14 @@ def fill_missing_values(clean_df):
 
 
 def save_clean_model_file(df, file_name="clean_brfss_data.csv"):
-    """
-    Save cleaned dataframe to CSV.
-    """
+    """Save cleaned dataframe to CSV."""
     df.to_csv(file_name, index=False)
     print(f"\nSaved cleaned data as {file_name}")
 
 # this is where stats and graphs for coorelation go
 
 def prepare_features_and_target(df, target_col):
-    """
-    Select predictor variables and one target variable.
-    """
+    """Select predictor variables and one target variable."""
     feature_cols = ["income", "education", "employment", "insurance", "age", "sex"]
     available_features = [col for col in feature_cols if col in df.columns]
 
@@ -116,9 +100,7 @@ def prepare_features_and_target(df, target_col):
 
 
 def maybe_sample_data(X, y, max_rows=None, random_state=42):
-    """
-    Optionally sample the dataset to speed up KNN.
-    """
+    """Optionally sample the dataset to speed up KNN."""
     if max_rows is None or len(X) <= max_rows:
         return X, y
 
@@ -134,9 +116,7 @@ def maybe_sample_data(X, y, max_rows=None, random_state=42):
 
 def split_train_validation_test(X, y, train_size=0.6, val_size=0.2,
                                 test_size=0.2, random_state=42):
-    """
-    Split data into train, validation, and test sets.
-    """
+    """ Split data into train, validation, and test sets. """
     X_train, X_temp, y_train, y_temp = train_test_split(
         X,
         y,
@@ -159,9 +139,7 @@ def split_train_validation_test(X, y, train_size=0.6, val_size=0.2,
 
 
 def scale_datasets(X_train, X_val, X_test):
-    """
-    Standardize features using the training set only.
-    """
+    """Standardize features using the training set only."""
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_val_scaled = scaler.transform(X_val)
@@ -171,16 +149,12 @@ def scale_datasets(X_train, X_val, X_test):
 
 
 def compute_distances_vectorized(X_train, test_row):
-    """
-    Compute Euclidean distances from one test row to all training rows.
-    """
+    """Compute Euclidean distances from one test row to all training rows."""
     return np.sqrt(np.sum((X_train - test_row) ** 2, axis=1))
 
 
 def predict_one(X_train, y_train, test_row, k):
-    """
-    Predict one class label using KNN.
-    """
+    """Predict one class label using KNN."""
     distances = compute_distances_vectorized(X_train, test_row)
     nearest_indices = np.argsort(distances)[:k]
     nearest_labels = y_train[nearest_indices]
@@ -192,9 +166,7 @@ def predict_one(X_train, y_train, test_row, k):
 
 
 def predict_all(X_train, y_train, X_test, k):
-    """
-    Predict class labels for all rows in X_test.
-    """
+    """Predict class labels for all rows in X_test."""
     predictions = []
 
     for row in X_test:
@@ -205,9 +177,7 @@ def predict_all(X_train, y_train, X_test, k):
 
 
 def evaluate_model(y_true, y_pred):
-    """
-    Compute multiclass evaluation metrics.
-    """
+    """Compute multiclass evaluation metrics."""
     accuracy = accuracy_score(y_true, y_pred)
     precision = precision_score(y_true, y_pred, average="weighted", zero_division=0)
     recall = recall_score(y_true, y_pred, average="weighted", zero_division=0)
@@ -217,9 +187,7 @@ def evaluate_model(y_true, y_pred):
 
 
 def test_k_values(X_train, y_train, X_val, y_val, k_values):
-    """
-    Test several k values on the validation set.
-    """
+    """Test several k values on the validation set."""
     results = []
 
     for k in k_values:
@@ -247,9 +215,7 @@ def test_k_values(X_train, y_train, X_val, y_val, k_values):
 
 
 def run_knn_for_target(df, target_col, k_values, max_rows=10000):
-    """
-    Run the full KNN workflow for one target variable.
-    """
+    """Run the full KNN workflow for one target variable."""
     print(f"\n{'=' * 50}")
     print(f"RUNNING KNN FOR: {target_col.upper()}")
     print(f"{'=' * 50}")
@@ -306,8 +272,7 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     return summary
 
 def save_predictions_with_features(X_test, y_test, y_pred, feature_names, target_col):
-    """
-    Save a CSV file that includes:
+    """Save a CSV file that includes:
     - socioeconomic features
     - actual values
     - predicted values
@@ -341,9 +306,7 @@ def save_predictions_with_features(X_test, y_test, y_pred, feature_names, target
     print(f"Saved full predictions file: {file_name}")
 
 def main():
-    """
-    Run KNN for all selected health outcomes.
-    """
+    """Run KNN for all selected health outcomes."""
     use_clean_file = True
     raw_file = "brfss_survey_data_2024.csv"
     clean_file = "clean_brfss_data.csv"
