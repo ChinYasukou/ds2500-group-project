@@ -1,0 +1,62 @@
+#visualization 
+from sklearn.metrics import confusion_matrix
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load prediction data
+df = pd.read_csv("knn_diabetes_predictions_full.csv")
+
+# 1. ACCURACY BAR (MAIN GRAPH)
+models = ["Diabetes", "Hypertension", "Cholesterol"]
+accuracy = [0.887, 0.925, 0.956]
+
+plt.figure()
+plt.bar(models, accuracy)
+plt.title("Model Accuracy Comparison")
+plt.ylabel("Accuracy")
+plt.savefig("accuracy.png")
+plt.close()
+
+# 2. ACTUAL vs PREDICTED
+actual = df["actual_diabetes"].value_counts().sort_index()
+pred = df["predicted_diabetes"].value_counts().sort_index()
+
+labels = ["No Disease", "Disease"]
+
+plt.figure()
+plt.bar([0,1], actual, width=0.4, label="Actual")
+plt.bar([0.4,1.4], pred, width=0.4, label="Predicted")
+
+plt.xticks([0.2,1.2], labels)
+plt.title("Actual vs Predicted (Diabetes)")
+plt.legend()
+
+plt.savefig("actual_vs_predicted.png")
+plt.close()
+
+# 3. ERROR COUNT
+errors = (df["actual_diabetes"] != df["predicted_diabetes"]).astype(int)
+
+counts = errors.value_counts()
+
+plt.figure()
+plt.bar(["Correct", "Wrong"], [counts[0], counts[1]])
+plt.title("Prediction Errors")
+
+plt.savefig("errors.png")
+plt.close()
+
+# 4. CUMULATIVE CORRECT (LIKE YOUR HW)
+correct = (df["actual_diabetes"] == df["predicted_diabetes"]).astype(int)
+cumulative = correct.cumsum()
+
+plt.figure()
+plt.plot(cumulative)
+plt.title("Cumulative Correct Predictions")
+plt.xlabel("Samples")
+plt.ylabel("Correct Predictions")
+
+plt.savefig("cumulative.png")
+plt.close()
+
+print("ALL GRAPHS SAVED")
