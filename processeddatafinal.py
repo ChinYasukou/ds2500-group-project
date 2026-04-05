@@ -39,6 +39,18 @@ df["SEXVAR"] = df["SEXVAR"].replace({1: 1, 2: 0})
 df["_MICHD"] = df["_MICHD"].replace({1: 1, 2: 0})
 df["CHCSCNC1"] = df["CHCSCNC1"].replace({1: 1, 2: 0})
 
+df.rename(columns={
+    "INCOME3": "income",
+    "EDUCA": "education",
+    "EMPLOY1": "employment",
+    "PRIMINS2": "insurance",
+    "DIABETE4": "diabetes",
+    "_MICHD": "hypertension",
+    "CHCSCNC1": "cholesterol",
+    "_AGE80": "age",
+    "SEXVAR": "sex"
+}, inplace=True)
+
 # Save cleaned dataset
 df.to_csv("cleaned_brfss.csv", index=False)
 
