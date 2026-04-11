@@ -8,26 +8,22 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
-#Loading data
+# ─────────────────────────────────────────────
+# DATA LOADING
+# ─────────────────────────────────────────────
 
 def load_data(file):
-    """
-    Load raw BRFSS CSV file
-    """
-    return pd.read_csv(file, sep=",", low_memory=False)
+    """Load raw BRFSS CSV file."""
+    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
 
 
 def load_clean_data(file):
-    """
-    Load already-cleaned CSV file
-    """
+    """Load already-cleaned CSV file."""
     return pd.read_csv(file, low_memory=False)
 
 
 def find_existing_column(df, possible_names):
-    """
-    Return the first column name from possible_names that exists in df
-    """
+    """Return the first column name from possible_names that exists in df."""
     for col in possible_names:
         if col in df.columns:
             return col
@@ -35,9 +31,7 @@ def find_existing_column(df, possible_names):
 
 
 def build_column_map(df):
-    """
-    Build a column map using likely BRFSS variable names
-    """
+    """Build a column map using likely BRFSS variable names."""
     return {
         "income":       find_existing_column(df, ["INCOME3"]),
         "education":    find_existing_column(df, ["EDUCA"]),
@@ -53,7 +47,8 @@ def build_column_map(df):
 
 def clean_brfss_data(df, column_map):
     """
-    Choosing relevant columns, then replace BRFSS missing-value codes with NaN, then DROP rows that have any missing values in the columns we care about
+    Select relevant columns, replace BRFSS missing-value codes with NaN,
+    then DROP rows with any missing values.
     """
     selected = {k: v for k, v in column_map.items() if v is not None}
     clean_df = df[list(selected.values())].copy()
@@ -62,7 +57,6 @@ def clean_brfss_data(df, column_map):
     for col in clean_df.columns:
         clean_df[col] = pd.to_numeric(clean_df[col], errors="coerce")
 
-    #Multi-digit sentinel codes → NaN 
     global_missing = {
         77: np.nan,   88: np.nan,  99: np.nan,
         777: np.nan,  888: np.nan, 999: np.nan,
@@ -70,13 +64,12 @@ def clean_brfss_data(df, column_map):
     }
     clean_df.replace(global_missing, inplace=True)
 
-    #Single-digit sentinels: only on columns where 7/9 are NOT valid category codes
-    single_digit_cols = ["income", "education", "diabetes", "hypertension", "cholesterol", "sex", "insurance"]
+    single_digit_cols = ["income", "education", "diabetes",
+                         "hypertension", "cholesterol", "sex", "insurance"]
     for col in single_digit_cols:
         if col in clean_df.columns:
             clean_df[col] = clean_df[col].replace({7: np.nan, 9: np.nan})
 
-    #Employment: 7 = Retired (valid), 9 = Refused (sentinel)
     if "employment" in clean_df.columns:
         clean_df["employment"] = clean_df["employment"].replace({9: np.nan})
 
@@ -85,7 +78,6 @@ def clean_brfss_data(df, column_map):
     after = len(clean_df)
     print(f"Dropped {before - after} rows with missing values ({after} rows remain).")
 
-    #Recode diabetes to binary: 1=Yes → 1, 3=No → 0, drop gestational/pre-diabetes
     if "diabetes" in clean_df.columns:
         before_diab = len(clean_df)
         clean_df = clean_df[clean_df["diabetes"].isin([1, 3])].copy()
@@ -97,39 +89,33 @@ def clean_brfss_data(df, column_map):
 
 
 def save_clean_model_file(df, file_name="clean_brfss_data.csv"):
-    """
-    Save cleaned dataframe to CSV
-    """
+    """Save cleaned dataframe to CSV."""
     df.to_csv(file_name, index=False)
     print(f"Saved cleaned data as {file_name}")
 
 
-#Preprocessing 
+# ─────────────────────────────────────────────
+# FEATURE ENGINEERING
+# ─────────────────────────────────────────────
 
 NOMINAL_COLS = ["employment", "insurance"]
 ORDINAL_COLS = ["income", "education", "age", "sex"]
 
 
 def encode_features(X: pd.DataFrame) -> pd.DataFrame:
-    """
-    Encode nominal columns; keep ordinal/continuous columns numeric
-    """
+    """One-hot encode nominal columns; keep ordinal/continuous columns numeric."""
     nominal_present = [c for c in NOMINAL_COLS if c in X.columns]
     ordinal_present = [c for c in ORDINAL_COLS if c in X.columns]
-
     if nominal_present:
         dummies = pd.get_dummies(X[nominal_present].astype(str), prefix=nominal_present)
     else:
         dummies = pd.DataFrame(index=X.index)
-
     return pd.concat([X[ordinal_present].reset_index(drop=True),
                       dummies.reset_index(drop=True)], axis=1)
 
 
 def prepare_features_and_target(df, target_col):
-    """
-    Select predictor variables and one target variable
-    """
+    """Select predictor variables and one target variable."""
     feature_cols = ORDINAL_COLS + NOMINAL_COLS
     available    = [c for c in feature_cols if c in df.columns]
     model_df     = df[available + [target_col]].dropna().copy()
@@ -138,10 +124,9 @@ def prepare_features_and_target(df, target_col):
     return encode_features(X_raw), y
 
 
-def split_train_validation_test(X, y, train_size=0.6, val_size=0.2, test_size=0.2, random_state=42):
-    """
-    Split into train / validation / test
-    """
+def split_train_validation_test(X, y, train_size=0.6, val_size=0.2,
+                                test_size=0.2, random_state=42):
+    """Split into train / validation / test."""
     X_train, X_temp, y_train, y_temp = train_test_split(
         X, y, test_size=(1 - train_size), random_state=random_state, stratify=y)
     rel_test = test_size / (val_size + test_size)
@@ -151,9 +136,7 @@ def split_train_validation_test(X, y, train_size=0.6, val_size=0.2, test_size=0.
 
 
 def scale_datasets(X_train, X_val, X_test):
-    """
-    Standardize all features using the training set only
-    """
+    """Standardize all features using the training set only."""
     scaler = StandardScaler()
     return (scaler.fit_transform(X_train),
             scaler.transform(X_val),
@@ -161,9 +144,7 @@ def scale_datasets(X_train, X_val, X_test):
 
 
 def maybe_sample_data(X, y, max_rows=None, random_state=42):
-    """
-    Optionally subsample to speed up KNN
-    """
+    """Optionally subsample to speed up KNN."""
     if max_rows is None or len(X) <= max_rows:
         return X, y
     sampled = X.copy()
@@ -172,12 +153,11 @@ def maybe_sample_data(X, y, max_rows=None, random_state=42):
     return sampled.drop(columns=["_target"]), sampled["_target"]
 
 
-#KNN
+# ─────────────────────────────────────────────
+# KNN (from scratch)
+# ─────────────────────────────────────────────
 
 def predict_one(X_train, y_train, test_row, k):
-    """
-    Predict the class label for a single test observation using KNN
-    """
     dists = np.sqrt(np.sum((X_train - test_row) ** 2, axis=1))
     nn    = np.argsort(dists)[:k]
     vals, counts = np.unique(y_train[nn], return_counts=True)
@@ -185,16 +165,10 @@ def predict_one(X_train, y_train, test_row, k):
 
 
 def predict_all(X_train, y_train, X_test, k):
-    """
-    Predict class labels for all rows in a test set using KNN
-    """
     return np.array([predict_one(X_train, y_train, row, k) for row in X_test])
 
 
 def evaluate_model(y_true, y_pred):
-    """
-    Compute classification metrics for a set of predictions
-    """
     return (
         accuracy_score(y_true, y_pred),
         precision_score(y_true, y_pred, average="weighted", zero_division=0),
@@ -204,9 +178,6 @@ def evaluate_model(y_true, y_pred):
 
 
 def test_k_values(X_train, y_train, X_val, y_val, k_values):
-    """
-    Evaluate KNN performance across multiple values of k on a validation set
-    """
     results = []
     for k in k_values:
         y_pred = predict_all(X_train, y_train, X_val, k)
@@ -218,14 +189,12 @@ def test_k_values(X_train, y_train, X_val, y_val, k_values):
     return df_r, int(df_r.loc[df_r["f1_weighted"].idxmax(), "k"])
 
 
-
-#Saving results
-
+# ─────────────────────────────────────────────
+# SAVING RESULTS
+# ─────────────────────────────────────────────
 
 def save_predictions_with_features(X_test_df, y_test, y_pred, target_col):
-    """
-    Save feature values + actual + predicted to CSV
-    """
+    """Save feature values + actual + predicted to CSV."""
     out = X_test_df.copy().reset_index(drop=True)
     out[f"actual_{target_col}"]    = y_test
     out[f"predicted_{target_col}"] = y_pred
@@ -235,66 +204,47 @@ def save_predictions_with_features(X_test_df, y_test, y_pred, target_col):
     return out
 
 
-
-#Visualization (Altair)
-
+# ─────────────────────────────────────────────
+# VISUALIZATIONS (Altair) — based on ACTUAL values
+# ─────────────────────────────────────────────
 
 EDUCATION_LABELS = {
-    1: "Never attended", 2: "Grades 1-8", 3: "Grades 9-11",
+    1: "Never attended", 2: "Grades 1-8",   3: "Grades 9-11",
     4: "Grade 12/GED",   5: "Some college", 6: "College grad",
 }
 INCOME_LABELS = {
-    1: "<$10k",    2: "$10-15k",  3: "$15-20k",   4: "$20-25k",
-    5: "$25-35k",  6: "$35-50k",  7: "$50-75k",   8: "$75-100k",
+    1: "<$10k",     2: "$10-15k",   3: "$15-20k",   4: "$20-25k",
+    5: "$25-35k",   6: "$35-50k",   7: "$50-75k",   8: "$75-100k",
     9: "$100-150k", 10: "$150-200k", 11: ">$200k",
 }
 SEX_LABELS        = {1: "Male", 2: "Female"}
 EMPLOYMENT_LABELS = {
-    1: "Employed wages", 2: "Self-employed",   3: "Out of work >1yr",
-    4: "Out of work <1yr", 5: "Homemaker",     6: "Student",
+    1: "Employed wages",   2: "Self-employed",    3: "Out of work >1yr",
+    4: "Out of work <1yr", 5: "Homemaker",        6: "Student",
     7: "Retired",          8: "Unable to work",
 }
-INSURANCE_LABELS  = {1: "Yes, one plan", 2: "Yes, multiple", 3: "No insurance"}
+INSURANCE_LABELS = {1: "Yes, one plan", 2: "Yes, multiple", 3: "No insurance"}
 
 TARGET_CLASS_LABELS = {
     "diabetes":     {0: "Not diabetic", 1: "Diabetic"},
     "hypertension": {1: "Has condition", 2: "No condition"},
-    "cholesterol":  {1: "Diagnosed", 2: "Not diagnosed"},
+    "cholesterol":  {1: "Diagnosed",     2: "Not diagnosed"},
 }
 
 
-def decode_ohe(df, prefix, label_map):
+def add_readable_labels(df: pd.DataFrame, target: str) -> pd.DataFrame:
     """
-    Collapse encoded columns back into a single readable string column
-    """
-    ohe_cols = [c for c in df.columns if c.startswith(f"{prefix}_")]
-    if not ohe_cols:
-        return df
-
-    def get_label(row):
-        for c in ohe_cols:
-            if row[c] == 1:
-                try:
-                    code = int(float(c.split("_")[-1]))
-                    return label_map.get(code, str(code))
-                except ValueError:
-                    return "Unknown"
-        return "Unknown"
-
-    df[f"{prefix}_label"] = df.apply(get_label, axis=1)
-    return df
-
-
-def prep_predictions(df: pd.DataFrame, target: str) -> pd.DataFrame:
-    """
-    Add readable label columns to a predictions DataFrame
+    Add human-readable label columns to the cleaned dataframe
+    so charts show actual health outcomes vs socioeconomic factors.
     """
     df = df.copy()
-    pred_col = f"predicted_{target}"
 
-    df["predicted_label"] = df[pred_col].map(
-        TARGET_CLASS_LABELS.get(target, {})).fillna(df[pred_col].astype(str))
+    # Readable actual health outcome label
+    actual_col = target
+    df["actual_label"] = df[actual_col].map(
+        TARGET_CLASS_LABELS.get(target, {})).fillna(df[actual_col].astype(str))
 
+    # Socioeconomic feature labels
     if "education" in df.columns:
         df["education_label"] = df["education"].map(EDUCATION_LABELS)
         df["education_order"] = df["education"]
@@ -305,31 +255,32 @@ def prep_predictions(df: pd.DataFrame, target: str) -> pd.DataFrame:
         df["sex_label"] = df["sex"].map(SEX_LABELS)
     if "age" in df.columns:
         bins   = [17, 24, 34, 44, 54, 64, 74, 80]
-        labels = ["18-24","25-34","35-44","45-54","55-64","65-74","75-80"]
+        labels = ["18-24", "25-34", "35-44", "45-54", "55-64", "65-74", "75-80"]
         df["age_group"] = pd.cut(df["age"], bins=bins, labels=labels).astype(str)
-
-    df = decode_ohe(df, "employment", EMPLOYMENT_LABELS)
-    df = decode_ohe(df, "insurance",  INSURANCE_LABELS)
+    if "employment" in df.columns:
+        df["employment_label"] = df["employment"].map(EMPLOYMENT_LABELS)
+    if "insurance" in df.columns:
+        df["insurance_label"] = df["insurance"].map(INSURANCE_LABELS)
 
     return df
 
 
-def make_proportion_chart(df: pd.DataFrame, x_col: str, x_title: str,
-                          target: str, sort_col: str = None) -> alt.Chart:
+def make_actual_chart(df: pd.DataFrame, x_col: str, x_title: str,
+                      target: str, sort_col: str = None) -> alt.Chart:
     """
-    100% stacked bar chart: proportion of each predicted class per category.
-    Click legend to highlight. Hover for exact counts and percentages.
+    100% stacked bar chart showing the proportion of each ACTUAL health outcome
+    class for each socioeconomic category. Hover for counts and percentages.
+    Click a class in the legend to highlight it.
     """
-    pred_col = "predicted_label"
-    counts   = (df.groupby([x_col, pred_col])
-                  .size()
-                  .reset_index(name="count"))
+    outcome_col  = "actual_label"
+    counts = (df.groupby([x_col, outcome_col])
+                .size()
+                .reset_index(name="count"))
     totals              = counts.groupby(x_col)["count"].transform("sum")
     counts["proportion"] = counts["count"] / totals
-    counts["pct_text"]   = (counts["proportion"] * 100).round(1).astype(str) + "%"
 
     if sort_col and sort_col in df.columns:
-        order_map      = df[[x_col, sort_col]].drop_duplicates().set_index(x_col)[sort_col]
+        order_map       = df[[x_col, sort_col]].drop_duplicates().set_index(x_col)[sort_col]
         counts["_sort"] = counts[x_col].map(order_map)
         x_enc = alt.X(f"{x_col}:N", title=x_title,
                       sort=alt.EncodingSortField(field="_sort", order="ascending"))
@@ -339,7 +290,7 @@ def make_proportion_chart(df: pd.DataFrame, x_col: str, x_title: str,
     class_labels = list(TARGET_CLASS_LABELS.get(target, {}).values())
     color_scale  = alt.Scale(domain=class_labels,
                              range=["#4C78A8", "#F58518", "#54A24B", "#E45756"])
-    selection    = alt.selection_point(fields=[pred_col], bind="legend")
+    selection    = alt.selection_point(fields=[outcome_col], bind="legend")
 
     return (
         alt.Chart(counts)
@@ -348,49 +299,46 @@ def make_proportion_chart(df: pd.DataFrame, x_col: str, x_title: str,
             x=x_enc,
             y=alt.Y("proportion:Q", title="Proportion",
                     axis=alt.Axis(format="%")),
-            color=alt.Color(f"{pred_col}:N", title="Predicted class",
+            color=alt.Color(f"{outcome_col}:N", title="Actual outcome",
                             scale=color_scale),
             opacity=alt.condition(selection, alt.value(1), alt.value(0.2)),
             tooltip=[
-                alt.Tooltip(f"{x_col}:N",         title=x_title),
-                alt.Tooltip(f"{pred_col}:N",       title="Predicted"),
-                alt.Tooltip("proportion:Q",        title="Proportion", format=".1%"),
-                alt.Tooltip("count:Q",             title="Count"),
+                alt.Tooltip(f"{x_col}:N",        title=x_title),
+                alt.Tooltip(f"{outcome_col}:N",  title="Actual outcome"),
+                alt.Tooltip("proportion:Q",       title="Proportion", format=".1%"),
+                alt.Tooltip("count:Q",            title="Count"),
             ]
         )
         .add_params(selection)
         .properties(width=440, height=280,
-                    title=f"Predicted {target.capitalize()} by {x_title}")
+                    title=f"Actual {target.capitalize()} by {x_title}")
     )
 
 
 def build_target_charts(df: pd.DataFrame, target: str) -> alt.VConcatChart:
-    """
-    Build all charts for one health outcome
-    """
-    df = prep_predictions(df, target)
+    """Build all charts for one health outcome using actual values."""
+    df = add_readable_labels(df, target)
     charts = []
 
     if "education_label" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "education_label", "Education Level", target, "education_order"))
     if "income_label" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "income_label", "Household Income", target, "income_order"))
     if "age_group" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "age_group", "Age Group", target))
     if "sex_label" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "sex_label", "Sex", target))
     if "employment_label" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "employment_label", "Employment Status", target))
     if "insurance_label" in df.columns:
-        charts.append(make_proportion_chart(
+        charts.append(make_actual_chart(
             df, "insurance_label", "Insurance Coverage", target))
 
-    # Arrange into rows of 2
     rows = []
     for i in range(0, len(charts), 2):
         pair = charts[i:i+2]
@@ -399,15 +347,16 @@ def build_target_charts(df: pd.DataFrame, target: str) -> alt.VConcatChart:
     return alt.vconcat(*rows).properties(title=f"── {target.upper()} ──")
 
 
-def build_dashboard(predictions_dict: dict, output_file="brfss_dashboard.html"):
+def build_dashboard(df: pd.DataFrame, targets: list,
+                    output_file="brfss_dashboard.html"):
     """
-    Build and save one HTML dashboard for all health outcomes
+    Build and save one HTML dashboard for all health outcomes,
+    using actual values from the full cleaned dataset.
     """
     alt.data_transformers.enable("default", max_rows=None)
 
     pages = [build_target_charts(df, target)
-             for target, df in predictions_dict.items()
-             if df is not None and not df.empty]
+             for target in targets if target in df.columns]
 
     dashboard = (
         alt.vconcat(*pages)
@@ -420,12 +369,12 @@ def build_dashboard(predictions_dict: dict, output_file="brfss_dashboard.html"):
     print(f"\nDashboard saved → {output_file}  (open in any browser)")
 
 
-#KNN pipeline
+# ─────────────────────────────────────────────
+# FULL PIPELINE FOR ONE TARGET
+# ─────────────────────────────────────────────
 
 def run_knn_for_target(df, target_col, k_values, max_rows=10000):
-    """
-    Run the full KNN training pipeline for a single target variable
-    """
+    """Run the full KNN training pipeline for a single target variable."""
     print(f"\n{'=' * 50}")
     print(f"RUNNING KNN FOR: {target_col.upper()}")
     print(f"{'=' * 50}")
@@ -457,7 +406,6 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
 
     results_df.to_csv(f"knn_{target_col}_k_results.csv", index=False)
 
-    # Save predictions using unscaled X_test so charts show real feature values
     X_test_df = X_test.reset_index(drop=True)
     save_predictions_with_features(X_test_df, y_te, y_pred, target_col)
 
@@ -468,7 +416,9 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     }
 
 
-#Main
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -485,9 +435,9 @@ def main():
             print(f"Loaded cleaned file: {clean_file}  shape={df.shape}")
         except FileNotFoundError:
             print("Cleaned file not found — building from raw data...")
-            raw_df = load_data(raw_file)
+            raw_df  = load_data(raw_file)
             col_map = build_column_map(raw_df)
-            df = clean_brfss_data(raw_df, col_map)
+            df      = clean_brfss_data(raw_df, col_map)
             save_clean_model_file(df, clean_file)
     else:
         raw_df  = load_data(raw_file)
@@ -510,14 +460,8 @@ def main():
     print(f"\n{'=' * 50}\nFINAL SUMMARY\n{'=' * 50}")
     print(summary_df)
 
-    #Altair dashboard from saved prediction CSVs
-    preds_dict = {}
-    for target in targets:
-        fname = f"knn_{target}_predictions_full.csv"
-        if os.path.exists(fname):
-            preds_dict[target] = pd.read_csv(fname)
-
-    build_dashboard(preds_dict, "brfss_dashboard.html")
+    # Build Altair dashboard from actual values in the full cleaned dataset
+    build_dashboard(df, targets, "brfss_dashboard.html")
 
 
 if __name__ == "__main__":
