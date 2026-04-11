@@ -14,7 +14,7 @@ def load_data(file):
     """
     Load raw BRFSS CSV file
     """
-    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
+    return pd.read_csv(file, sep=",", low_memory=False)
 
 
 def load_clean_data(file):
