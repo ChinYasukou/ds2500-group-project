@@ -8,22 +8,26 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
-# ─────────────────────────────────────────────
-# DATA LOADING
-# ─────────────────────────────────────────────
+#Loading data
 
 def load_data(file):
-    """Load raw BRFSS CSV file."""
-    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
+    """
+    Load raw BRFSS CSV file
+    """
+    return pd.read_csv(file, sep=",", low_memory=False)
 
 
 def load_clean_data(file):
-    """Load already-cleaned CSV file."""
+    """
+    Load already-cleaned CSV file
+    """
     return pd.read_csv(file, low_memory=False)
 
 
 def find_existing_column(df, possible_names):
-    """Return the first column name from possible_names that exists in df."""
+    """
+    Return the first column name from possible_names that exists in df
+    """
     for col in possible_names:
         if col in df.columns:
             return col
@@ -31,7 +35,9 @@ def find_existing_column(df, possible_names):
 
 
 def build_column_map(df):
-    """Build a column map using likely BRFSS variable names."""
+    """
+    Build a column map using likely BRFSS variable names
+    """
     return {
         "income":       find_existing_column(df, ["INCOME3"]),
         "education":    find_existing_column(df, ["EDUCA"]),
@@ -47,8 +53,7 @@ def build_column_map(df):
 
 def clean_brfss_data(df, column_map):
     """
-    Select relevant columns, replace BRFSS missing-value codes with NaN,
-    then DROP rows with any missing values.
+    Choosing relevant columns, then replace BRFSS missing-value codes with NaN, then DROP rows that have any missing values in the columns we care about
     """
     selected = {k: v for k, v in column_map.items() if v is not None}
     clean_df = df[list(selected.values())].copy()
@@ -56,7 +61,8 @@ def clean_brfss_data(df, column_map):
 
     for col in clean_df.columns:
         clean_df[col] = pd.to_numeric(clean_df[col], errors="coerce")
-
+        
+    #Multi-digit sentinel codes → NaN 
     global_missing = {
         77: np.nan,   88: np.nan,  99: np.nan,
         777: np.nan,  888: np.nan, 999: np.nan,
@@ -64,12 +70,14 @@ def clean_brfss_data(df, column_map):
     }
     clean_df.replace(global_missing, inplace=True)
 
+    #Single-digit sentinels: only on columns where 7/9 are NOT valid category codes
     single_digit_cols = ["income", "education", "diabetes",
                          "hypertension", "cholesterol", "sex", "insurance"]
     for col in single_digit_cols:
         if col in clean_df.columns:
             clean_df[col] = clean_df[col].replace({7: np.nan, 9: np.nan})
 
+    #Employment: 7 = Retired (valid), 9 = Refused (sentinel)
     if "employment" in clean_df.columns:
         clean_df["employment"] = clean_df["employment"].replace({9: np.nan})
 
@@ -78,6 +86,7 @@ def clean_brfss_data(df, column_map):
     after = len(clean_df)
     print(f"Dropped {before - after} rows with missing values ({after} rows remain).")
 
+    #Recode diabetes to binary: 1=Yes → 1, 3=No → 0, drop gestational/pre-diabetes
     if "diabetes" in clean_df.columns:
         before_diab = len(clean_df)
         clean_df = clean_df[clean_df["diabetes"].isin([1, 3])].copy()
@@ -89,21 +98,23 @@ def clean_brfss_data(df, column_map):
 
 
 def save_clean_model_file(df, file_name="clean_brfss_data.csv"):
-    """Save cleaned dataframe to CSV."""
+    """
+    Save cleaned dataframe to CSV
+    """
     df.to_csv(file_name, index=False)
     print(f"Saved cleaned data as {file_name}")
 
 
-# ─────────────────────────────────────────────
-# FEATURE ENGINEERING
-# ─────────────────────────────────────────────
+#Preprocessing 
 
 NOMINAL_COLS = ["employment", "insurance"]
 ORDINAL_COLS = ["income", "education", "age", "sex"]
 
 
 def encode_features(X: pd.DataFrame) -> pd.DataFrame:
-    """One-hot encode nominal columns; keep ordinal/continuous columns numeric."""
+    """
+    Encode nominal columns; keep ordinal/continuous columns numeric
+    """
     nominal_present = [c for c in NOMINAL_COLS if c in X.columns]
     ordinal_present = [c for c in ORDINAL_COLS if c in X.columns]
     if nominal_present:
@@ -115,7 +126,9 @@ def encode_features(X: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_features_and_target(df, target_col):
-    """Select predictor variables and one target variable."""
+    """
+    Select predictor variables and one target variable
+    """
     feature_cols = ORDINAL_COLS + NOMINAL_COLS
     available    = [c for c in feature_cols if c in df.columns]
     model_df     = df[available + [target_col]].dropna().copy()
@@ -126,7 +139,9 @@ def prepare_features_and_target(df, target_col):
 
 def split_train_validation_test(X, y, train_size=0.6, val_size=0.2,
                                 test_size=0.2, random_state=42):
-    """Split into train / validation / test."""
+    """
+    Split into train / validation / test
+    """
     X_train, X_temp, y_train, y_temp = train_test_split(
         X, y, test_size=(1 - train_size), random_state=random_state, stratify=y)
     rel_test = test_size / (val_size + test_size)
@@ -136,7 +151,9 @@ def split_train_validation_test(X, y, train_size=0.6, val_size=0.2,
 
 
 def scale_datasets(X_train, X_val, X_test):
-    """Standardize all features using the training set only."""
+    """
+    Standardize all features using the training set only
+    """
     scaler = StandardScaler()
     return (scaler.fit_transform(X_train),
             scaler.transform(X_val),
@@ -144,7 +161,9 @@ def scale_datasets(X_train, X_val, X_test):
 
 
 def maybe_sample_data(X, y, max_rows=None, random_state=42):
-    """Optionally subsample to speed up KNN."""
+    """
+    Optionally subsample to speed up KNN
+    """
     if max_rows is None or len(X) <= max_rows:
         return X, y
     sampled = X.copy()
@@ -153,11 +172,12 @@ def maybe_sample_data(X, y, max_rows=None, random_state=42):
     return sampled.drop(columns=["_target"]), sampled["_target"]
 
 
-# ─────────────────────────────────────────────
-# KNN (from scratch)
-# ─────────────────────────────────────────────
+#KNN
 
 def predict_one(X_train, y_train, test_row, k):
+    """
+    Predict the class label for a single test observation using KNN
+    """
     dists = np.sqrt(np.sum((X_train - test_row) ** 2, axis=1))
     nn    = np.argsort(dists)[:k]
     vals, counts = np.unique(y_train[nn], return_counts=True)
@@ -165,10 +185,16 @@ def predict_one(X_train, y_train, test_row, k):
 
 
 def predict_all(X_train, y_train, X_test, k):
+    """
+    Predict class labels for all rows in a test set using KNN
+    """
     return np.array([predict_one(X_train, y_train, row, k) for row in X_test])
 
 
 def evaluate_model(y_true, y_pred):
+    """
+    Compute classification metrics for a set of predictions
+    """
     return (
         accuracy_score(y_true, y_pred),
         precision_score(y_true, y_pred, average="weighted", zero_division=0),
@@ -178,6 +204,9 @@ def evaluate_model(y_true, y_pred):
 
 
 def test_k_values(X_train, y_train, X_val, y_val, k_values):
+    """
+    Evaluate KNN performance across multiple values of k on a validation set
+    """
     results = []
     for k in k_values:
         y_pred = predict_all(X_train, y_train, X_val, k)
@@ -189,12 +218,12 @@ def test_k_values(X_train, y_train, X_val, y_val, k_values):
     return df_r, int(df_r.loc[df_r["f1_weighted"].idxmax(), "k"])
 
 
-# ─────────────────────────────────────────────
-# SAVING RESULTS
-# ─────────────────────────────────────────────
+#Saving results
 
 def save_predictions_with_features(X_test_df, y_test, y_pred, target_col):
-    """Save feature values + actual + predicted to CSV."""
+    """
+    Save feature values + actual + predicted to CSV
+    """
     out = X_test_df.copy().reset_index(drop=True)
     out[f"actual_{target_col}"]    = y_test
     out[f"predicted_{target_col}"] = y_pred
@@ -204,9 +233,7 @@ def save_predictions_with_features(X_test_df, y_test, y_pred, target_col):
     return out
 
 
-# ─────────────────────────────────────────────
-# VISUALIZATIONS (Altair) — based on ACTUAL values
-# ─────────────────────────────────────────────
+#Visualization (Altair)
 
 EDUCATION_LABELS = {
     1: "Never attended", 2: "Grades 1-8",   3: "Grades 9-11",
@@ -234,8 +261,7 @@ TARGET_CLASS_LABELS = {
 
 def add_readable_labels(df: pd.DataFrame, target: str) -> pd.DataFrame:
     """
-    Add human-readable label columns to the cleaned dataframe
-    so charts show actual health outcomes vs socioeconomic factors.
+    Add human-readable label columns to the cleaned dataframe so charts show actual health outcomes vs socioeconomic factors
     """
     df = df.copy()
 
@@ -268,9 +294,7 @@ def add_readable_labels(df: pd.DataFrame, target: str) -> pd.DataFrame:
 def make_actual_chart(df: pd.DataFrame, x_col: str, x_title: str,
                       target: str, sort_col: str = None) -> alt.Chart:
     """
-    100% stacked bar chart showing the proportion of each ACTUAL health outcome
-    class for each socioeconomic category. Hover for counts and percentages.
-    Click a class in the legend to highlight it.
+    100% stacked bar chart showing the proportion of each ACTUAL health outcome class for each socioeconomic category
     """
     outcome_col  = "actual_label"
     counts = (df.groupby([x_col, outcome_col])
@@ -316,7 +340,9 @@ def make_actual_chart(df: pd.DataFrame, x_col: str, x_title: str,
 
 
 def build_target_charts(df: pd.DataFrame, target: str) -> alt.VConcatChart:
-    """Build all charts for one health outcome using actual values."""
+    """
+    Build all charts for one health outcome using actual values
+    """
     df = add_readable_labels(df, target)
     charts = []
 
@@ -369,9 +395,7 @@ def build_dashboard(df: pd.DataFrame, targets: list,
     print(f"\nDashboard saved → {output_file}  (open in any browser)")
 
 
-# ─────────────────────────────────────────────
-# FULL PIPELINE FOR ONE TARGET
-# ─────────────────────────────────────────────
+#KNN pipeline
 
 def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     """Run the full KNN training pipeline for a single target variable."""
@@ -416,9 +440,7 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     }
 
 
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
+#Main
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
