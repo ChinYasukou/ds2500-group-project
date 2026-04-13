@@ -406,6 +406,8 @@ pred_hypertension, score_hypertension = predict_risk(models["hypertension"], use
 pred_cholesterol, score_cholesterol = predict_risk(models["cholesterol"], user_input_scaled)
 
 st.subheader("Prediction Results")
+st.caption("Predictions are based on KNN — finding individuals with similar "
+           "socioeconomic profiles and using their outcomes to estimate risk.")
 
 col1, col2, col3 = st.columns(3)
 
@@ -436,6 +438,25 @@ for message in messages:
 
 
 # =========================
+# key findings (PPT slides 4 & 6)
+# =========================
+st.subheader("Key Findings")
+
+st.write(
+    "Our analysis reveals a consistent relationship between lower socioeconomic "
+    "status and worse health outcomes. These patterns appear across multiple "
+    "variables — income, education, employment, and insurance — suggesting they "
+    "are not random but reflect structural inequalities in health risk."
+)
+
+st.write(
+    "Lower income groups tend to show higher rates of diabetes, hypertension, "
+    "and cholesterol issues. Similarly, individuals with lower education levels "
+    "report worse general health on average."
+)
+
+
+# =========================
 # model evaluation (from main_DS_project)
 # =========================
 st.subheader("Model Evaluation (Scratch KNN)")
@@ -456,6 +477,13 @@ for target, res in scratch_results.items():
     })
 
 st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+st.write(
+    "The model achieves moderate to strong performance across all three outcomes. "
+    "Cholesterol and hypertension show higher F1 scores, suggesting these outcomes "
+    "are more strongly linked to the socioeconomic features we used. Diabetes is "
+    "harder to predict, indicating additional factors beyond socioeconomics play a role."
+)
 
 # k-value tuning charts
 with st.expander("K-Value Tuning Details"):
@@ -509,6 +537,7 @@ with tab1:
         st.pyplot(plot_bmi_by_sex(graph_df))
 
 with tab2:
+    st.caption("Lower income groups consistently show higher rates of chronic disease.")
     col1, col2 = st.columns(2)
     with col1:
         st.pyplot(plot_diabetes_by_income(graph_df))
@@ -532,12 +561,33 @@ with tab3:
         st.altair_chart(chart, use_container_width=True)
 
 with tab4:
-    st.write("These graphs help show how socioeconomic factors and demographics "
-             "relate to BMI and chronic disease outcomes in the dataset.")
+    st.write("These graphs show how socioeconomic factors and demographics "
+             "relate to BMI and chronic disease outcomes in the dataset. "
+             "The consistent patterns across income, education, age, and sex "
+             "suggest structural inequalities in health risk — not random variation.")
+
+
+# =========================
+# conclusions & limitations (PPT slide 6)
+# =========================
+st.subheader("Conclusions & Limitations")
+
+st.write(
+    "Clear and consistent relationships exist between socioeconomic status and "
+    "health outcomes. However, these patterns alone are not strong enough for "
+    "highly accurate prediction."
+)
+
+st.write(
+    "Health outcomes are also influenced by behavioral factors, access to care, "
+    "and biological differences — none of which are captured in this dataset. "
+    "Socioeconomic data can help identify at-risk populations, but effective "
+    "prediction and policy require more comprehensive health information."
+)
 
 
 # =========================
 # footer
 # =========================
 st.write("---")
-st.write("DS2500 Final Project")
+st.write("DS2500 Final Project — Lucy Pesek, Sharon Wu, Zineb Laghzaoui, Jinghao Shen (Frank)")
