@@ -438,16 +438,16 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     "target": target_col, "best_k": best_k,
 
     # KNN results
-    "KNNaccuracy": acc,
-    "KNNprecision_weighted": pre,
-    "KNNrecall_weighted": rec,
-    "KNNf1_weighted": f1,
+    "knn_accuracy": acc,
+    "knn_precision": pre,
+    "knn_recall": rec,
+    "knn_f1": f1,
 
     # Logistic Regression results (NEW)
     "logreg_accuracy": log_acc,
-    "logreg_precision_weighted": log_pre,
-    "logreg_recall_weighted": log_rec,
-    "logreg_f1_weighted": log_f1,
+    "logreg_precision": log_pre,
+    "logreg_recall": log_rec,
+    "logreg_f1": log_f1,
 }
 
 
@@ -491,6 +491,7 @@ def main():
     summary_df = pd.DataFrame(results)
     summary_df.to_csv("knn_all_health_outcomes_summary.csv", index=False)
     print(f"\n{'=' * 50}\nFINAL SUMMARY\n{'=' * 50}")
+    pd.set_option('display.max_columns', None)
     print(summary_df)
 
     # Build Altair dashboard from actual values in the full cleaned dataset
