@@ -33,19 +33,36 @@ SEX_LABELS = {
     0: "Female"
 }
 
+EMPLOYMENT_LABELS = {
+    1: "Employed wages",
+    2: "Self-employed",
+    3: "Out of work >1yr",
+    4: "Out of work <1yr",
+    5: "Homemaker",
+    6: "Student",
+    7: "Retired",
+    8: "Unable to work"
+}
+
+INSURANCE_LABELS = {
+    1: "Yes, one plan",
+    2: "Yes, multiple",
+    3: "No insurance"
+}
+
 
 # =========================
 # load data
 # =========================
 def load_clean_data():
     df = pd.read_csv(DATA_FILE)
+    df.columns = df.columns.str.strip().str.lower()
 
     required_cols = [
         "income",
         "education",
         "employment",
         "insurance",
-        "bmi",
         "general_health",
         "diabetes",
         "hypertension",
@@ -72,7 +89,6 @@ def prepare_graph_data(df):
         "education",
         "employment",
         "insurance",
-        "bmi",
         "general_health",
         "diabetes",
         "hypertension",
@@ -82,7 +98,8 @@ def prepare_graph_data(df):
     ]
 
     for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # keep only valid project values
     df = df[df["income"].isin(INCOME_LABELS.keys())]
@@ -96,7 +113,6 @@ def prepare_graph_data(df):
     needed = [
         "income",
         "education",
-        "bmi",
         "general_health",
         "diabetes",
         "hypertension",
@@ -109,6 +125,10 @@ def prepare_graph_data(df):
     df["income_label"] = df["income"].map(INCOME_LABELS)
     df["education_label"] = df["education"].map(EDUCATION_LABELS)
     df["sex_label"] = df["sex"].map(SEX_LABELS)
+    if "employment" in df.columns:
+        df["employment_label"] = df["employment"].map(EMPLOYMENT_LABELS)
+    if "insurance" in df.columns:
+        df["insurance_label"] = df["insurance"].map(INSURANCE_LABELS)
 
     return df
 
@@ -116,28 +136,6 @@ def prepare_graph_data(df):
 # =========================
 # helper functions
 # =========================
-def boxplot_figure(dataframe, group_col, value_col, title, xlabel, ylabel, order=None):
-    plot_df = dataframe.copy()
-
-    if order is not None:
-        plot_df[group_col] = pd.Categorical(
-            plot_df[group_col],
-            categories=order,
-            ordered=True
-        )
-        plot_df = plot_df.sort_values(group_col)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    plot_df.boxplot(column=value_col, by=group_col, ax=ax)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.setp(ax.get_xticklabels(), rotation=30, ha="right")
-    fig.suptitle("")
-    fig.tight_layout()
-    return fig
-
-
 def bar_mean_figure(dataframe, group_col, value_col, title, xlabel, ylabel, order=None):
     grouped = dataframe.groupby(group_col)[value_col].mean()
 
@@ -154,54 +152,15 @@ def bar_mean_figure(dataframe, group_col, value_col, title, xlabel, ylabel, orde
     return fig
 
 
-def scatter_figure(dataframe, x_col, y_col, title, xlabel, ylabel):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(dataframe[x_col], dataframe[y_col], alpha=0.25)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    fig.tight_layout()
-    return fig
-
-
 # =========================
 # project data visualizations
 # =========================
-def plot_bmi_by_income(df):
-    income_order = [INCOME_LABELS[k] for k in INCOME_LABELS]
-    return boxplot_figure(
-        df,
-        "income_label",
-        "bmi",
-        "BMI by Income Level",
-        "Income Level",
-        "BMI",
-        income_order
-    )
-
-
-def plot_bmi_by_education(df):
-    education_order = [EDUCATION_LABELS[k] for k in EDUCATION_LABELS]
-    return boxplot_figure(
-        df,
-        "education_label",
-        "bmi",
-        "BMI by Education Level",
-        "Education Level",
-        "BMI",
-        education_order
-    )
-
-
 def plot_general_health_by_income(df):
     income_order = [INCOME_LABELS[k] for k in INCOME_LABELS]
     return bar_mean_figure(
-        df,
-        "income_label",
-        "general_health",
+        df, "income_label", "general_health",
         "Average General Health by Income",
-        "Income Level",
-        "Average General Health Score",
+        "Income Level", "Average General Health Score",
         income_order
     )
 
@@ -209,12 +168,9 @@ def plot_general_health_by_income(df):
 def plot_general_health_by_education(df):
     education_order = [EDUCATION_LABELS[k] for k in EDUCATION_LABELS]
     return bar_mean_figure(
-        df,
-        "education_label",
-        "general_health",
+        df, "education_label", "general_health",
         "Average General Health by Education",
-        "Education Level",
-        "Average General Health Score",
+        "Education Level", "Average General Health Score",
         education_order
     )
 
@@ -222,12 +178,9 @@ def plot_general_health_by_education(df):
 def plot_diabetes_by_income(df):
     income_order = [INCOME_LABELS[k] for k in INCOME_LABELS]
     return bar_mean_figure(
-        df,
-        "income_label",
-        "diabetes",
+        df, "income_label", "diabetes",
         "Diabetes Rate by Income",
-        "Income Level",
-        "Diabetes Rate",
+        "Income Level", "Diabetes Rate",
         income_order
     )
 
@@ -235,12 +188,9 @@ def plot_diabetes_by_income(df):
 def plot_diabetes_by_education(df):
     education_order = [EDUCATION_LABELS[k] for k in EDUCATION_LABELS]
     return bar_mean_figure(
-        df,
-        "education_label",
-        "diabetes",
+        df, "education_label", "diabetes",
         "Diabetes Rate by Education",
-        "Education Level",
-        "Diabetes Rate",
+        "Education Level", "Diabetes Rate",
         education_order
     )
 
@@ -248,119 +198,67 @@ def plot_diabetes_by_education(df):
 def plot_hypertension_by_income(df):
     income_order = [INCOME_LABELS[k] for k in INCOME_LABELS]
     return bar_mean_figure(
-        df,
-        "income_label",
-        "hypertension",
+        df, "income_label", "hypertension",
         "Hypertension Rate by Income",
-        "Income Level",
-        "Hypertension Rate",
+        "Income Level", "Hypertension Rate",
         income_order
+    )
+
+
+def plot_hypertension_by_education(df):
+    education_order = [EDUCATION_LABELS[k] for k in EDUCATION_LABELS]
+    return bar_mean_figure(
+        df, "education_label", "hypertension",
+        "Hypertension Rate by Education",
+        "Education Level", "Hypertension Rate",
+        education_order
     )
 
 
 def plot_cholesterol_by_income(df):
     income_order = [INCOME_LABELS[k] for k in INCOME_LABELS]
     return bar_mean_figure(
-        df,
-        "income_label",
-        "cholesterol",
+        df, "income_label", "cholesterol",
         "Cholesterol Rate by Income",
-        "Income Level",
-        "Cholesterol Rate",
+        "Income Level", "Cholesterol Rate",
         income_order
     )
 
 
-def plot_age_vs_bmi(df):
-    return scatter_figure(
-        df,
-        "age",
-        "bmi",
-        "Age vs BMI",
-        "Age",
-        "BMI"
+def plot_cholesterol_by_education(df):
+    education_order = [EDUCATION_LABELS[k] for k in EDUCATION_LABELS]
+    return bar_mean_figure(
+        df, "education_label", "cholesterol",
+        "Cholesterol Rate by Education",
+        "Education Level", "Cholesterol Rate",
+        education_order
     )
 
 
-def plot_bmi_by_sex(df):
-    sex_order = ["Male", "Female"]
-    return boxplot_figure(
-        df,
-        "sex_label",
-        "bmi",
-        "BMI by Sex",
-        "Sex",
-        "BMI",
-        sex_order
+def plot_diabetes_by_age(df):
+    plot_df = df.copy()
+    bins = [17, 24, 34, 44, 54, 64, 74, 80]
+    labels = ["18-24", "25-34", "35-44", "45-54", "55-64", "65-74", "75-80"]
+    plot_df["age_group"] = pd.cut(plot_df["age"], bins=bins, labels=labels)
+    return bar_mean_figure(
+        plot_df, "age_group", "diabetes",
+        "Diabetes Rate by Age Group",
+        "Age Group", "Diabetes Rate",
+        labels
     )
 
 
-# =========================
-# KNN evaluation figures
-# =========================
-def plot_accuracy_comparison(diabetes_acc=0.887, hypertension_acc=0.925, cholesterol_acc=0.956):
-    models = ["Diabetes", "Hypertension", "Cholesterol"]
-    accuracy = [diabetes_acc, hypertension_acc, cholesterol_acc]
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(models, accuracy)
-    ax.set_title("Model Accuracy Comparison")
-    ax.set_ylabel("Accuracy")
-    fig.tight_layout()
-    return fig
-
-
-def plot_actual_vs_predicted(prediction_file="knn_diabetes_predictions_full.csv"):
-    df = pd.read_csv(prediction_file)
-
-    actual = df["actual_diabetes"].value_counts().sort_index()
-    predicted = df["predicted_diabetes"].value_counts().sort_index()
-
-    actual_no = actual.get(0, 0)
-    actual_yes = actual.get(1, 0)
-    pred_no = predicted.get(0, 0)
-    pred_yes = predicted.get(1, 0)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar([0, 1], [actual_no, actual_yes], width=0.4, label="Actual")
-    ax.bar([0.4, 1.4], [pred_no, pred_yes], width=0.4, label="Predicted")
-    ax.set_xticks([0.2, 1.2])
-    ax.set_xticklabels(["No Disease", "Disease"])
-    ax.set_title("Actual vs Predicted (Diabetes)")
-    ax.legend()
-    fig.tight_layout()
-    return fig
-
-
-def plot_error_count(prediction_file="knn_diabetes_predictions_full.csv"):
-    df = pd.read_csv(prediction_file)
-
-    errors = (df["actual_diabetes"] != df["predicted_diabetes"]).astype(int)
-    counts = errors.value_counts()
-
-    correct_count = counts.get(0, 0)
-    wrong_count = counts.get(1, 0)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(["Correct", "Wrong"], [correct_count, wrong_count])
-    ax.set_title("Prediction Errors")
-    fig.tight_layout()
-    return fig
-
-
-def plot_cumulative_correct(prediction_file="knn_diabetes_predictions_full.csv"):
-    df = pd.read_csv(prediction_file)
-
-    correct = (df["actual_diabetes"] == df["predicted_diabetes"]).astype(int)
-    cumulative = correct.cumsum()
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(cumulative)
-    ax.set_title("Cumulative Correct Predictions")
-    ax.set_xlabel("Samples")
-    ax.set_ylabel("Correct Predictions")
-    fig.tight_layout()
-    return fig
+def plot_hypertension_by_age(df):
+    plot_df = df.copy()
+    bins = [17, 24, 34, 44, 54, 64, 74, 80]
+    labels = ["18-24", "25-34", "35-44", "45-54", "55-64", "65-74", "75-80"]
+    plot_df["age_group"] = pd.cut(plot_df["age"], bins=bins, labels=labels)
+    return bar_mean_figure(
+        plot_df, "age_group", "hypertension",
+        "Hypertension Rate by Age Group",
+        "Age Group", "Hypertension Rate",
+        labels
+    )
 
 
 # =========================
@@ -386,32 +284,25 @@ def main():
     graph_df = prepare_graph_data(df)
 
     figures = [
-        plot_bmi_by_income(graph_df),
-        plot_bmi_by_education(graph_df),
         plot_general_health_by_income(graph_df),
         plot_general_health_by_education(graph_df),
         plot_diabetes_by_income(graph_df),
         plot_diabetes_by_education(graph_df),
         plot_hypertension_by_income(graph_df),
         plot_cholesterol_by_income(graph_df),
-        plot_age_vs_bmi(graph_df),
-        plot_bmi_by_sex(graph_df)
+        plot_diabetes_by_age(graph_df),
+        plot_hypertension_by_age(graph_df),
     ]
 
     for fig in figures:
-        plt.figure(fig.number)
-        plt.show()
+        if fig is not None:
+            plt.figure(fig.number)
+            plt.show()
 
     print("\nSummary statistics:")
     for col in [
-        "bmi",
-        "income",
-        "education",
-        "general_health",
-        "diabetes",
-        "hypertension",
-        "cholesterol",
-        "age"
+        "income", "education", "general_health",
+        "diabetes", "hypertension", "cholesterol", "age"
     ]:
         print(get_stats(graph_df, col))
 
