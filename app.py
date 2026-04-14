@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
@@ -10,24 +9,25 @@ from sklearn.model_selection import train_test_split
 from Graph_with_KNN import (
     load_clean_data,
     prepare_graph_data,
-    plot_bmi_by_income,
-    plot_bmi_by_education,
     plot_general_health_by_income,
     plot_general_health_by_education,
     plot_diabetes_by_income,
     plot_diabetes_by_education,
     plot_hypertension_by_income,
+    plot_hypertension_by_education,
     plot_cholesterol_by_income,
-    plot_age_vs_bmi,
-    plot_bmi_by_sex
+    plot_cholesterol_by_education,
+    plot_diabetes_by_age,
+    plot_hypertension_by_age,
 )
 
 
 # =========================
-# constants from main_DS_project
+# constants (aligned with main_DS_project)
 # =========================
 NOMINAL_COLS = ["employment", "insurance"]
 ORDINAL_COLS = ["income", "education", "age", "sex"]
+ALL_FEATURES = ORDINAL_COLS + NOMINAL_COLS
 
 EDUCATION_LABELS_ALT = {
     1: "Never attended", 2: "Grades 1-8",   3: "Grades 9-11",
@@ -38,7 +38,7 @@ INCOME_LABELS_ALT = {
     5: "$25-35k",   6: "$35-50k",   7: "$50-75k",   8: "$75-100k",
     9: "$100-150k", 10: "$150-200k", 11: ">$200k",
 }
-SEX_LABELS_ALT        = {1: "Male", 2: "Female"}
+SEX_LABELS_ALT = {1: "Male", 2: "Female"}
 EMPLOYMENT_LABELS = {
     1: "Employed wages",   2: "Self-employed",    3: "Out of work >1yr",
     4: "Out of work <1yr", 5: "Homemaker",        6: "Student",
@@ -51,6 +51,9 @@ TARGET_CLASS_LABELS = {
     "hypertension": {1: "Has condition", 2: "No condition"},
     "cholesterol":  {1: "Diagnosed",     2: "Not diagnosed"},
 }
+
+TARGETS = ["diabetes", "hypertension", "cholesterol"]
+K_VALUES = [1, 3, 5, 7, 9, 11]
 
 
 # =========================
@@ -72,8 +75,8 @@ def load_project_data():
 
 @st.cache_data
 def load_graph_data():
-    df = load_clean_data()
-    return prepare_graph_data(df)
+    d = load_clean_data()
+    return prepare_graph_data(d)
 
 
 df = load_project_data()
@@ -95,13 +98,12 @@ def encode_features(X: pd.DataFrame) -> pd.DataFrame:
                       dummies.reset_index(drop=True)], axis=1)
 
 
-def prepare_features_and_target(df, target_col):
+def prepare_features_and_target(dataframe, target_col):
     """Select predictor variables and one target variable."""
-    feature_cols = ORDINAL_COLS + NOMINAL_COLS
-    available    = [c for c in feature_cols if c in df.columns]
-    model_df     = df[available + [target_col]].dropna().copy()
-    X_raw        = model_df[available]
-    y            = model_df[target_col]
+    available = [c for c in ALL_FEATURES if c in dataframe.columns]
+    model_df  = dataframe[available + [target_col]].dropna().copy()
+    X_raw     = model_df[available]
+    y         = model_df[target_col]
     return encode_features(X_raw), y
 
 
@@ -147,6 +149,7 @@ def run_knn_for_target(_df, target_col, k_values, max_rows=10000):
     X, y = prepare_features_and_target(_df, target_col)
     X, y = maybe_sample_data(X, y, max_rows=max_rows)
 
+    # 60 / 20 / 20 split
     X_train, X_temp, y_train, y_temp = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
     X_val, X_test, y_val, y_test = train_test_split(
@@ -161,7 +164,7 @@ def run_knn_for_target(_df, target_col, k_values, max_rows=10000):
     y_va = y_val.to_numpy()
     y_te = y_test.to_numpy()
 
-    # test k values on validation set
+    # tune k on validation set
     k_results = []
     for k in k_values:
         y_pred = predict_all(X_tr_s, y_tr, X_va_s, k)
@@ -172,7 +175,7 @@ def run_knn_for_target(_df, target_col, k_values, max_rows=10000):
     k_results_df = pd.DataFrame(k_results)
     best_k = int(k_results_df.loc[k_results_df["f1"].idxmax(), "k"])
 
-    # evaluate on test set with best k
+    # final evaluation on TEST set with best k
     y_pred_test = predict_all(X_tr_s, y_tr, X_te_s, best_k)
     acc, pre, rec, f1 = evaluate_model(y_te, y_pred_test)
 
@@ -184,48 +187,54 @@ def run_knn_for_target(_df, target_col, k_values, max_rows=10000):
         "recall": round(rec, 4),
         "f1": round(f1, 4),
         "k_results_df": k_results_df,
+        "scaler": scaler,
+        "X_tr_s": X_tr_s,
+        "y_tr": y_tr,
+        "feature_columns": list(X_train.columns),
     }
 
 
 # =========================
 # Altair interactive charts (from main_DS_project)
 # =========================
-def add_readable_labels(df, target):
+def add_readable_labels(dataframe, target):
     """Add human-readable label columns for Altair charts."""
-    df = df.copy()
-    df["actual_label"] = df[target].map(
-        TARGET_CLASS_LABELS.get(target, {})).fillna(df[target].astype(str))
+    dataframe = dataframe.copy()
+    dataframe["actual_label"] = dataframe[target].map(
+        TARGET_CLASS_LABELS.get(target, {})).fillna(dataframe[target].astype(str))
 
-    if "education" in df.columns:
-        df["education_label"] = df["education"].map(EDUCATION_LABELS_ALT)
-        df["education_order"] = df["education"]
-    if "income" in df.columns:
-        df["income_label"] = df["income"].map(INCOME_LABELS_ALT)
-        df["income_order"] = df["income"]
-    if "sex" in df.columns:
-        df["sex_label"] = df["sex"].map(SEX_LABELS_ALT)
-    if "age" in df.columns:
+    if "education" in dataframe.columns:
+        dataframe["education_label"] = dataframe["education"].map(EDUCATION_LABELS_ALT)
+        dataframe["education_order"] = dataframe["education"]
+    if "income" in dataframe.columns:
+        dataframe["income_label"] = dataframe["income"].map(INCOME_LABELS_ALT)
+        dataframe["income_order"] = dataframe["income"]
+    if "sex" in dataframe.columns:
+        dataframe["sex_label"] = dataframe["sex"].map(SEX_LABELS_ALT)
+    if "age" in dataframe.columns:
         bins   = [17, 24, 34, 44, 54, 64, 74, 80]
         labels = ["18-24", "25-34", "35-44", "45-54", "55-64", "65-74", "75-80"]
-        df["age_group"] = pd.cut(df["age"], bins=bins, labels=labels).astype(str)
-    if "employment" in df.columns:
-        df["employment_label"] = df["employment"].map(EMPLOYMENT_LABELS)
-    if "insurance" in df.columns:
-        df["insurance_label"] = df["insurance"].map(INSURANCE_LABELS)
-    return df
+        dataframe["age_group"] = pd.cut(dataframe["age"], bins=bins, labels=labels).astype(str)
+    if "employment" in dataframe.columns:
+        dataframe["employment_label"] = dataframe["employment"].map(EMPLOYMENT_LABELS)
+    if "insurance" in dataframe.columns:
+        dataframe["insurance_label"] = dataframe["insurance"].map(INSURANCE_LABELS)
+    return dataframe
 
 
-def make_actual_chart(df, x_col, x_title, target, sort_col=None):
+def make_actual_chart(dataframe, x_col, x_title, target, sort_col=None):
     """100% stacked bar chart showing actual health outcome proportions."""
-    outcome_col  = "actual_label"
-    counts = (df.groupby([x_col, outcome_col])
-                .size()
-                .reset_index(name="count"))
-    totals              = counts.groupby(x_col)["count"].transform("sum")
+    outcome_col = "actual_label"
+    counts = (dataframe.groupby([x_col, outcome_col])
+                       .size()
+                       .reset_index(name="count"))
+    totals               = counts.groupby(x_col)["count"].transform("sum")
     counts["proportion"] = counts["count"] / totals
 
-    if sort_col and sort_col in df.columns:
-        order_map       = df[[x_col, sort_col]].drop_duplicates().set_index(x_col)[sort_col]
+    if sort_col and sort_col in dataframe.columns:
+        order_map       = (dataframe[[x_col, sort_col]]
+                           .drop_duplicates()
+                           .set_index(x_col)[sort_col])
         counts["_sort"] = counts[x_col].map(order_map)
         x_enc = alt.X(f"{x_col}:N", title=x_title,
                       sort=alt.EncodingSortField(field="_sort", order="ascending"))
@@ -248,10 +257,10 @@ def make_actual_chart(df, x_col, x_title, target, sort_col=None):
                             scale=color_scale),
             opacity=alt.condition(selection, alt.value(1), alt.value(0.2)),
             tooltip=[
-                alt.Tooltip(f"{x_col}:N",        title=x_title),
-                alt.Tooltip(f"{outcome_col}:N",  title="Actual outcome"),
-                alt.Tooltip("proportion:Q",       title="Proportion", format=".1%"),
-                alt.Tooltip("count:Q",            title="Count"),
+                alt.Tooltip(f"{x_col}:N",       title=x_title),
+                alt.Tooltip(f"{outcome_col}:N", title="Actual outcome"),
+                alt.Tooltip("proportion:Q",      title="Proportion", format=".1%"),
+                alt.Tooltip("count:Q",           title="Count"),
             ]
         )
         .add_params(selection)
@@ -260,81 +269,47 @@ def make_actual_chart(df, x_col, x_title, target, sort_col=None):
     )
 
 
-def build_target_charts(df, target):
+def build_target_charts(dataframe, target):
     """Build all Altair charts for one health outcome."""
-    df = add_readable_labels(df, target)
+    dataframe = add_readable_labels(dataframe, target)
     charts = []
 
-    if "education_label" in df.columns:
+    if "education_label" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "education_label", "Education Level", target, "education_order"))
-    if "income_label" in df.columns:
+            dataframe, "education_label", "Education Level", target, "education_order"))
+    if "income_label" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "income_label", "Household Income", target, "income_order"))
-    if "age_group" in df.columns:
+            dataframe, "income_label", "Household Income", target, "income_order"))
+    if "age_group" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "age_group", "Age Group", target))
-    if "sex_label" in df.columns:
+            dataframe, "age_group", "Age Group", target))
+    if "sex_label" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "sex_label", "Sex", target))
-    if "employment_label" in df.columns:
+            dataframe, "sex_label", "Sex", target))
+    if "employment_label" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "employment_label", "Employment Status", target))
-    if "insurance_label" in df.columns:
+            dataframe, "employment_label", "Employment Status", target))
+    if "insurance_label" in dataframe.columns:
         charts.append(make_actual_chart(
-            df, "insurance_label", "Insurance Coverage", target))
+            dataframe, "insurance_label", "Insurance Coverage", target))
 
     rows = []
     for i in range(0, len(charts), 2):
-        pair = charts[i:i+2]
+        pair = charts[i:i + 2]
         rows.append(alt.hconcat(*pair).resolve_scale(color="shared"))
 
     return alt.vconcat(*rows).properties(title=f"── {target.upper()} ──")
 
 
 # =========================
-# train sklearn KNN models (for prediction sidebar)
-# =========================
-@st.cache_resource
-def train_sklearn_models(dataframe):
-    features = ["income", "education", "age", "sex"]
-    targets = ["diabetes", "hypertension", "cholesterol"]
-
-    df_model = dataframe.copy()
-    df_model = df_model.dropna(subset=features + targets)
-
-    X = df_model[features]
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    models = {}
-    target_summaries = {}
-
-    for target in targets:
-        y = df_model[target]
-        model = KNeighborsClassifier(n_neighbors=15)
-        model.fit(X_scaled, y)
-        models[target] = model
-        target_summaries[target] = y.value_counts().to_dict()
-
-    return scaler, models, target_summaries
-
-
-scaler, models, target_summaries = train_sklearn_models(df)
-
-
-# =========================
-# run scratch KNN evaluation (cached)
+# run scratch KNN for all targets (cached)
 # =========================
 @st.cache_data
 def run_all_scratch_knn(_df):
-    targets  = ["diabetes", "hypertension", "cholesterol"]
-    k_values = [1, 3, 5, 7, 9, 11]
-    results  = {}
-    for target in targets:
+    results = {}
+    for target in TARGETS:
         if target in _df.columns:
-            results[target] = run_knn_for_target(_df, target, k_values, max_rows=10000)
+            results[target] = run_knn_for_target(_df, target, K_VALUES, max_rows=10000)
     return results
 
 
@@ -346,36 +321,61 @@ scratch_results = run_all_scratch_knn(df)
 # =========================
 st.sidebar.header("Enter Your Information")
 
-income = st.sidebar.slider("Income Level", 1, 11, 6)
+income    = st.sidebar.slider("Income Level", 1, 11, 6)
 education = st.sidebar.slider("Education Level", 1, 6, 4)
-age = st.sidebar.slider("Age", 18, 80, 30)
-sex = st.sidebar.selectbox("Sex", ["Female", "Male"])
+age       = st.sidebar.slider("Age", 18, 80, 30)
+sex       = st.sidebar.selectbox("Sex", ["Female", "Male"])
+employment = st.sidebar.selectbox(
+    "Employment Status",
+    list(EMPLOYMENT_LABELS.keys()),
+    format_func=lambda x: EMPLOYMENT_LABELS[x],
+    index=0
+)
+insurance = st.sidebar.selectbox(
+    "Insurance Coverage",
+    list(INSURANCE_LABELS.keys()),
+    format_func=lambda x: INSURANCE_LABELS[x],
+    index=0
+)
 
 sex_value = 1 if sex == "Male" else 0
 
-user_input = pd.DataFrame([{
+# build user input with same encoding as training
+user_raw = pd.DataFrame([{
     "income": income,
     "education": education,
     "age": age,
-    "sex": sex_value
+    "sex": sex_value,
+    "employment": employment,
+    "insurance": insurance,
 }])
-
-user_input_scaled = scaler.transform(user_input)
+user_encoded = encode_features(user_raw)
 
 
 # =========================
 # prediction helpers
 # =========================
-def predict_risk(model, scaled_input):
-    prediction = model.predict(scaled_input)[0]
-    if hasattr(model, "predict_proba"):
-        probabilities = model.predict_proba(scaled_input)[0]
-        classes = model.classes_
-        prob_map = dict(zip(classes, probabilities))
-        risk_score = prob_map.get(1, 0.0)
-    else:
-        risk_score = 1.0 if prediction == 1 else 0.0
-    return prediction, risk_score
+def predict_risk_scratch(res, user_enc):
+    """Predict using the scratch KNN with the stored training data."""
+    # align columns — user_encoded may be missing some one-hot columns
+    feature_cols = res["feature_columns"]
+    user_aligned = pd.DataFrame(columns=feature_cols)
+    user_aligned = pd.concat([user_aligned, user_enc], ignore_index=True).fillna(0)
+    # keep only the training columns in the right order
+    user_aligned = user_aligned[feature_cols]
+
+    user_scaled = res["scaler"].transform(user_aligned)
+    best_k = res["best_k"]
+
+    prediction = predict_one(res["X_tr_s"], res["y_tr"], user_scaled[0], best_k)
+
+    # compute approximate probability using k-neighbor votes
+    dists = np.sqrt(np.sum((res["X_tr_s"] - user_scaled[0]) ** 2, axis=1))
+    nn = np.argsort(dists)[:best_k]
+    neighbor_labels = res["y_tr"][nn]
+    risk_score = np.mean(neighbor_labels == 1)
+
+    return int(prediction), float(risk_score)
 
 
 def risk_label(prediction):
@@ -392,18 +392,19 @@ def risk_color_box(title, prediction, score):
 
 
 # =========================
-# dataset preview
+# dataset preview (BMI excluded)
 # =========================
 st.subheader("Dataset Preview")
-st.dataframe(df.head())
+preview_cols = [c for c in df.columns if c != "bmi"]
+st.dataframe(df[preview_cols].head())
 
 
 # =========================
-# predictions
+# predictions (using scratch KNN — same model as evaluation)
 # =========================
-pred_diabetes, score_diabetes = predict_risk(models["diabetes"], user_input_scaled)
-pred_hypertension, score_hypertension = predict_risk(models["hypertension"], user_input_scaled)
-pred_cholesterol, score_cholesterol = predict_risk(models["cholesterol"], user_input_scaled)
+pred_diabetes, score_diabetes = predict_risk_scratch(scratch_results["diabetes"], user_encoded)
+pred_hypertension, score_hypertension = predict_risk_scratch(scratch_results["hypertension"], user_encoded)
+pred_cholesterol, score_cholesterol = predict_risk_scratch(scratch_results["cholesterol"], user_encoded)
 
 st.subheader("Prediction Results")
 st.caption("Predictions are based on KNN — finding individuals with similar "
@@ -457,14 +458,15 @@ st.write(
 
 
 # =========================
-# model evaluation (from main_DS_project)
+# model evaluation (all dynamically computed on test set)
 # =========================
 st.subheader("Model Evaluation (Scratch KNN)")
 
 st.write("These results come from the from-scratch KNN implementation with "
-         "train/validation/test splits and k-value tuning.")
+         "train/validation/test splits and k-value tuning. All metrics are "
+         "computed on the held-out test set.")
 
-# summary table
+# summary table — dynamically built from scratch_results
 summary_rows = []
 for target, res in scratch_results.items():
     summary_rows.append({
@@ -504,37 +506,39 @@ with st.expander("K-Value Tuning Details"):
 # model info
 # =========================
 with st.expander("Model Information"):
-    st.write("**Sidebar Prediction:** Uses sklearn KNeighborsClassifier (k=15) "
-             "with features: income, education, age, sex.")
-    st.write("**Evaluation Section:** Uses a from-scratch KNN implementation with "
-             "one-hot encoded employment and insurance features, 60/20/20 "
-             "train/validation/test split, and StandardScaler normalization.")
+    st.write("**Features:** income, education, age, sex (ordinal) + "
+             "employment, insurance (one-hot encoded).")
+    st.write("**Pipeline:** 60/20/20 train/validation/test split, "
+             "StandardScaler normalization, from-scratch KNN with k-value "
+             "tuning on validation set, final evaluation on test set.")
+    st.write("**Sidebar prediction** uses the same trained model and scaler "
+             "as the evaluation — no separate sklearn model.")
     st.write("**Target distribution (full dataset):**")
-    st.write(target_summaries)
+    for t in TARGETS:
+        if t in df.columns:
+            dist = df[t].value_counts().to_dict()
+            st.write(f"  {t}: {dist}")
 
 
 # =========================
-# visualizations
+# visualizations (BMI removed)
 # =========================
 st.subheader("Data Visualizations")
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "BMI and Health",
+tab1, tab2, tab3 = st.tabs([
+    "Health by Socioeconomic Factors",
     "Disease Rates",
     "Interactive Dashboard",
-    "Demographics"
 ])
 
 with tab1:
     col1, col2 = st.columns(2)
     with col1:
-        st.pyplot(plot_bmi_by_income(graph_df))
         st.pyplot(plot_general_health_by_income(graph_df))
-        st.pyplot(plot_age_vs_bmi(graph_df))
+        st.pyplot(plot_diabetes_by_age(graph_df))
     with col2:
-        st.pyplot(plot_bmi_by_education(graph_df))
         st.pyplot(plot_general_health_by_education(graph_df))
-        st.pyplot(plot_bmi_by_sex(graph_df))
+        st.pyplot(plot_hypertension_by_age(graph_df))
 
 with tab2:
     st.caption("Lower income groups consistently show higher rates of chronic disease.")
@@ -542,9 +546,11 @@ with tab2:
     with col1:
         st.pyplot(plot_diabetes_by_income(graph_df))
         st.pyplot(plot_hypertension_by_income(graph_df))
+        st.pyplot(plot_cholesterol_by_income(graph_df))
     with col2:
         st.pyplot(plot_diabetes_by_education(graph_df))
-        st.pyplot(plot_cholesterol_by_income(graph_df))
+        st.pyplot(plot_hypertension_by_education(graph_df))
+        st.pyplot(plot_cholesterol_by_education(graph_df))
 
 with tab3:
     st.write("Interactive Altair charts showing actual health outcome distributions "
@@ -552,19 +558,12 @@ with tab3:
 
     alt.data_transformers.enable("default", max_rows=None)
 
-    targets_list = ["diabetes", "hypertension", "cholesterol"]
-    selected_target = st.selectbox("Select health outcome:", targets_list,
+    selected_target = st.selectbox("Select health outcome:", TARGETS,
                                    format_func=lambda x: x.capitalize())
 
     if selected_target in df.columns:
-        chart = build_target_charts(df, selected_target)
-        st.altair_chart(chart, use_container_width=True)
-
-with tab4:
-    st.write("These graphs show how socioeconomic factors and demographics "
-             "relate to BMI and chronic disease outcomes in the dataset. "
-             "The consistent patterns across income, education, age, and sex "
-             "suggest structural inequalities in health risk — not random variation.")
+        altair_chart = build_target_charts(df, selected_target)
+        st.altair_chart(altair_chart, use_container_width=True)
 
 
 # =========================
