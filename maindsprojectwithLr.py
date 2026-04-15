@@ -450,9 +450,6 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     "logreg_f1": log_f1,
 }
 
-
-#Main
-
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     if script_dir not in sys.path:
