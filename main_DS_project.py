@@ -5,6 +5,7 @@ import numpy as np
 import altair as alt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
@@ -25,7 +26,7 @@ def load_data(file):
         DataFrame containing the raw BRFSS survey data.
 
     """
-    return pd.read_csv(file, sep=",", low_memory=False)
+    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
 
 
 def load_clean_data(file):
@@ -412,6 +413,29 @@ def evaluate_model(y_true, y_pred):
         f1_score(y_true, y_pred, average="weighted", zero_division=0),
     )
 
+def run_logistic_regression(X_train, y_train, X_test, y_test, feature_names):
+    model = LogisticRegression(max_iter=1000)
+
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    acc, pre, rec, f1 = evaluate_model(y_test, y_pred)
+
+    print("\n--- Logistic Regression Results ---")
+    print(f"Accuracy  : {acc:.4f}")
+    print(f"Precision : {pre:.4f}")
+    print(f"Recall    : {rec:.4f}")
+    print(f"F1 Score  : {f1:.4f}")
+
+    coef = model.coef_[0]
+
+    importance_df = pd.DataFrame({
+        "feature": feature_names,
+        "coefficient": coef,
+        "abs_value": np.abs(coef)
+    }).sort_values(by="abs_value", ascending=False)
+
+    return acc, pre, rec, f1, importance_df
 
 def test_k_values(X_train, y_train, X_val, y_val, k_values):
     """
@@ -765,6 +789,7 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     print("Shape after sampling:", X.shape)
 
     X_train, X_val, X_test, y_train, y_val, y_test = split_train_validation_test(X, y)
+    feature_names = X.columns
     X_tr_s, X_va_s, X_te_s = scale_datasets(X_train, X_val, X_test)
 
     y_tr = y_train.to_numpy()
@@ -776,11 +801,25 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     y_pred = predict_all(X_tr_s, y_tr, X_te_s, best_k)
     acc, pre, rec, f1 = evaluate_model(y_te, y_pred)
 
+    log_acc, log_pre, log_rec, log_f1, log_importance_df = run_logistic_regression(
+    X_tr_s, y_tr, X_te_s, y_te, feature_names)
+
+    print("\nTop 3 Important Variables:")
+    print(log_importance_df.head(3)[["feature", "coefficient"]])
+
     print(f"\nBest k: {best_k}")
-    print(f"Test  Accuracy  : {acc:.4f}")
-    print(f"      Precision : {pre:.4f}")
-    print(f"      Recall    : {rec:.4f}")
-    print(f"      F1        : {f1:.4f}")
+
+    print("\nPerformance:")
+
+    print("KNN:")
+    print(f"  Accuracy : {acc:.4f}")
+    print(f"  Recall   : {rec:.4f}")
+    print(f"  F1 Score : {f1:.4f}")
+
+    print("Logistic Regression:")
+    print(f"  Accuracy : {log_acc:.4f}")
+    print(f"  Recall   : {log_rec:.4f}")
+    print(f"  F1 Score : {log_f1:.4f}")
 
     results_df.to_csv(f"knn_{target_col}_k_results.csv", index=False)
 
@@ -788,13 +827,23 @@ def run_knn_for_target(df, target_col, k_values, max_rows=10000):
     save_predictions_with_features(X_test_df, y_te, y_pred, target_col)
 
     return {
-        "target": target_col, "best_k": best_k,
-        "accuracy": acc, "precision_weighted": pre,
-        "recall_weighted": rec, "f1_weighted": f1,
-    }
+    "target": target_col, "best_k": best_k,
+
+    # KNN results
+    "knn_accuracy": acc,
+    "knn_precision": pre,
+    "knn_recall": rec,
+    "knn_f1": f1,
+
+    # Logistic Regression results (NEW)
+    "logreg_accuracy": log_acc,
+    "logreg_precision": log_pre,
+    "logreg_recall": log_rec,
+    "logreg_f1": log_f1,
+}
 
 
-#Main
+
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -829,11 +878,13 @@ def main():
 
     for target in targets:
         if target in df.columns:
-            results.append(run_knn_for_target(df, target, k_values, max_rows=10000))
+            results.append(run_knn_for_target(df, target, k_values, 
+                                              max_rows=10000))
 
     summary_df = pd.DataFrame(results)
     summary_df.to_csv("knn_all_health_outcomes_summary.csv", index=False)
     print(f"\n{'=' * 50}\nFINAL SUMMARY\n{'=' * 50}")
+    pd.set_option('display.max_columns', None)
     print(summary_df)
 
     # Build Altair dashboard from actual values in the full cleaned dataset
@@ -842,3 +893,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+
+
