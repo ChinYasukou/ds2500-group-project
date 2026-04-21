@@ -28,7 +28,7 @@ def load_data(file):
         DataFrame containing the raw BRFSS survey data.
 
     """
-    return pd.read_csv(file, sep=",", skiprows=1, low_memory=False)
+    return pd.read_csv(file, sep=",", low_memory=False)
 
 
 def load_clean_data(file):
